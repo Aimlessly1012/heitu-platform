@@ -1,0 +1,28 @@
+services:
+  x-blog:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: x-blog
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    env_file:
+      - .env.local
+    environment:
+      - NODE_ENV=production
+    volumes:
+      # 持久化数据库
+      - ./data:/app/data
+      # 持久化日志（可选）
+      - ./logs:/app/logs
+
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "com.docker.compose.project=x-blog"
+      - "description=X Blog - Twitter Article Aggregator"

@@ -1,0 +1,12 @@
+node_modules
+.next
+.dumi
+dist
+docs-dist
+*.db
+*.db-shm
+*.db-wal
+logs/
+.env.local
+.env.morning-news
+.DS_Store

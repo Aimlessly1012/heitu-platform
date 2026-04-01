@@ -1,0 +1,22 @@
+services:
+  x-blog:
+    build:
+      context: .
+      dockerfile: apps/x-blog/Dockerfile
+    container_name: x-blog
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    env_file:
+      - apps/x-blog/.env.local
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - ./apps/x-blog/data:/app/data
+      - ./apps/x-blog/logs:/app/logs
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

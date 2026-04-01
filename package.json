@@ -1,0 +1,15 @@
+{
+  "name": "heitu-platform",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter x-blog dev",
+    "build": "pnpm --filter x-blog build",
+    "build:heitu": "pnpm --filter heitu build",
+    "docs:build": "pnpm --filter heitu docs:build",
+    "start": "pnpm --filter x-blog start"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
