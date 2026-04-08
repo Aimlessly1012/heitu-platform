@@ -10,3 +10,4 @@ logs/
 .env.local
 .env.morning-news
 .DS_Store
+.worktrees
