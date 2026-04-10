@@ -11,59 +11,56 @@ order: 4
 
 ## 描述
 
-一个用于处理轮询请求的 Hook，支持定时轮询、错误重试、手动控制等功能。
-
-## 特性
-
-- 支持自动/手动控制轮询
-- 可配置轮询间隔时间
-- 内置错误重试机制
-- 提供完整的状态管理
-- 支持成功/失败回调
-- 自动清理资源
+处理轮询请求的 Hook,支持定时轮询、错误重试、手动控制。
 
 ## 演示
-
-### 基础用法
 
 ```tsx
 import React from 'react';
 import { usePolling } from 'heitu';
-import Mock from 'mockjs';
+
+const styles = {
+  card: { padding: 20, background: '#F8FAFC', borderRadius: 8, border: '1px solid #E2E8F0', maxWidth: 400 },
+  status: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 500, marginBottom: 12 },
+  dot: { width: 8, height: 8, borderRadius: '50%', display: 'inline-block' },
+  result: { padding: '12px 14px', background: '#fff', borderRadius: 6, border: '1px solid #E2E8F0', fontSize: 15, fontWeight: 600, color: '#4F46E5', fontFamily: 'monospace', marginBottom: 16, minHeight: 42, display: 'flex', alignItems: 'center' },
+  row: { display: 'flex', gap: 8 },
+  btn: { padding: '8px 16px', borderRadius: 6, border: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer' },
+  success: { background: '#10B981', color: '#fff' },
+  danger: { background: '#EF4444', color: '#fff' },
+};
 
 export default () => {
-  const getUsername = () => {
-    console.log('polling getUsername');
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve(Mock.mock('@name'));
-      }, 1000);
-    });
-  };
-  const { data, loading, error, start, stop, state } = usePolling(
-    async () => {
-      const res = await getUsername();
-      return res;
-    },
-    {
-      interval: 5000, // 每5秒轮询一次
-      onSuccess: (data) => {
-        console.log('轮询成功:', data);
-      },
-      onError: (error) => {
-        console.log('轮询失败:', error);
-      },
-    },
+  const { data, loading, state, start, stop } = usePolling(
+    () =>
+      new Promise<string>((resolve) => {
+        setTimeout(() => resolve(`user-${Math.floor(Math.random() * 1000)}`), 500);
+      }),
+    { interval: 3000, manual: true },
   );
-  console.log(state, 'state');
+
+  const isPolling = state === 1;
+
   return (
-    <div>
-      {state === 1 && <span>轮询中...</span>}
-      {loading && <span>加载中...</span>}
-      {error && <span>错误: {error.message}</span>}
-      <div>数据: {JSON.stringify(data)}</div>
-      <button onClick={start}>开始轮询</button>
-      <button onClick={stop}>停止轮询</button>
+    <div style={styles.card}>
+      <div style={{ ...styles.status, background: isPolling ? '#ECFDF5' : '#F1F5F9' }}>
+        <span style={{ ...styles.dot, background: isPolling ? '#10B981' : '#94A3B8' }} />
+        {isPolling ? 'Polling (3s)' : 'Stopped'}
+        {loading && <span style={{ color: '#64748B', marginLeft: 4 }}>fetching...</span>}
+      </div>
+
+      <div style={styles.result}>
+        {data ?? <span style={{ color: '#94A3B8', fontWeight: 400 }}>No data</span>}
+      </div>
+
+      <div style={styles.row}>
+        <button style={{ ...styles.btn, ...styles.success, opacity: isPolling ? 0.5 : 1 }} onClick={start} disabled={isPolling}>
+          Start
+        </button>
+        <button style={{ ...styles.btn, ...styles.danger, opacity: !isPolling ? 0.5 : 1 }} onClick={stop} disabled={!isPolling}>
+          Stop
+        </button>
+      </div>
     </div>
   );
 };
@@ -77,7 +74,7 @@ export default () => {
 | ------------- | ---------------- | ------------------------ | ------ |
 | interval      | 轮询间隔时间(ms) | `number`                 | 3000   |
 | manual        | 是否手动控制轮询 | `boolean`                | false  |
-| retryTimes    | 失败重试次数     | `number`                 | 3      |
+| retryTimes    | 失败重试次数     | `number`                 | 0      |
 | retryInterval | 重试间隔时间(ms) | `number`                 | 1000   |
 | onSuccess     | 成功回调         | `(data: T) => void`      | -      |
 | onError       | 失败回调         | `(error: Error) => void` | -      |
@@ -91,3 +88,4 @@ export default () => {
 | error   | 错误信息       | `Error \| undefined` |
 | start   | 开始轮询       | `() => void`         |
 | stop    | 停止轮询       | `() => void`         |
+| state   | 0=stopped 1=polling | `number`        |

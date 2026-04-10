@@ -11,60 +11,53 @@ order: 1
 
 ## 描述
 
-useHtAxios 是一个基于 axios 封装的请求 Hook，提供了更便捷的请求方式和更灵活的配置选项。
-
-- 基于 axios 封装的请求 hook
-- 增加 axios 默认配置
-- 支持额外配置 axios 通用配置
-- 支持额外配置 axios 拦截请求
-- 支持额外配置 axios 拦截响应
+基于 axios 封装的请求 Hook,提供统一的拦截器配置和简便的 GET/POST/PUT/DELETE 方法。
 
 ## 演示
 
 ```tsx
 import { useHtAxios } from 'heitu';
-import React from 'react';
+import React, { useState } from 'react';
+
+const styles = {
+  card: { padding: 20, background: '#F8FAFC', borderRadius: 8, border: '1px solid #E2E8F0', maxWidth: 480 },
+  result: { padding: '10px 14px', background: '#fff', borderRadius: 6, border: '1px solid #E2E8F0', fontSize: 13, color: '#1E293B', marginBottom: 16, minHeight: 60, maxHeight: 160, overflow: 'auto', fontFamily: 'monospace', whiteSpace: 'pre-wrap' as const, wordBreak: 'break-all' as const },
+  btn: { padding: '8px 20px', borderRadius: 6, border: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', background: '#4F46E5', color: '#fff' },
+  tag: { display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, marginBottom: 12 },
+};
+
 export default () => {
+  const [result, setResult] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
   const htAxios = useHtAxios({
-    // 自定义配置
-    config: {
-      timeout: 3000,
-    },
-    // 请求拦截器
-    requestInterceptorsCallBack: (config) => {
-      // 可以在这里统一处理请求头、认证信息等
-      return config;
-    },
-    // 响应拦截器
-    responseInterceptorsCallBack: (response) => {
-      // 可以在这里统一处理响应数据
-      return response.data;
-    },
+    config: { timeout: 5000 },
+    responseInterceptorsCallBack: (response) => response.data,
   });
 
-  const getInfo = async () => {
-    const res = await htAxios.get('http://jsonplaceholder.typicode.com/posts', {
-      aa: '23123',
-    });
-    alert(JSON.stringify(res));
+  const fetchPosts = async () => {
+    setLoading(true);
+    try {
+      const res = await htAxios.get('https://jsonplaceholder.typicode.com/posts', { _limit: 2 });
+      setResult(res);
+    } catch (e) {
+      setResult({ error: (e as Error).message });
+    }
+    setLoading(false);
   };
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '10px',
-      }}
-    >
-      <button
-        type="button"
-        style={{ width: '50px' }}
-        onClick={() => {
-          getInfo();
-        }}
-      >
-        请求
+    <div style={styles.card}>
+      <div style={{ ...styles.tag, background: loading ? '#FFFBEB' : '#ECFDF5', color: loading ? '#F59E0B' : '#10B981' }}>
+        {loading ? 'Fetching...' : 'Ready'}
+      </div>
+      <div style={styles.result}>
+        {result
+          ? JSON.stringify(result, null, 2).slice(0, 500)
+          : <span style={{ color: '#94A3B8' }}>Response will appear here</span>}
+      </div>
+      <button style={{ ...styles.btn, opacity: loading ? 0.6 : 1 }} onClick={fetchPosts} disabled={loading}>
+        GET /posts
       </button>
     </div>
   );

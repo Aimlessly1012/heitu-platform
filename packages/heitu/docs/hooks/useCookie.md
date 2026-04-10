@@ -11,50 +11,54 @@ order: 1
 
 ## 描述
 
-cookie 简便操作
+Cookie 简便操作,支持自动同步(cookieStore API)和手动刷新。
 
 ## 演示
 
 ```tsx
-import React, { LegacyRef, useEffect } from 'react';
+import React from 'react';
 import { useCookie } from 'heitu';
 
+const styles = {
+  card: { padding: 20, background: '#F8FAFC', borderRadius: 8, border: '1px solid #E2E8F0', maxWidth: 460 },
+  label: { fontSize: 12, color: '#64748B', marginBottom: 4, display: 'block' },
+  value: { padding: '10px 14px', background: '#EEF2FF', borderRadius: 6, fontSize: 15, fontWeight: 600, color: '#4F46E5', marginBottom: 16, fontFamily: 'monospace', wordBreak: 'break-all' as const },
+  row: { display: 'flex', gap: 8, flexWrap: 'wrap' as const },
+  btn: { padding: '8px 16px', borderRadius: 6, border: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer' },
+  primary: { background: '#4F46E5', color: '#fff' },
+  secondary: { background: '#EEF2FF', color: '#4F46E5', border: '1px solid #C7D2FE' },
+  danger: { background: '#FEF2F2', color: '#EF4444', border: '1px solid #FECACA' },
+  muted: { background: '#F1F5F9', color: '#64748B', border: '1px solid #E2E8F0' },
+};
+
 export default () => {
-  const defaultOption = {
-    path: '/',
-  };
-  const cookieName = 'cookie-key';
+  const cookieName = 'heitu-demo';
   const [cookieValue, updateCookie, refreshCookie] = useCookie(
     cookieName,
-    defaultOption,
+    { path: '/' },
     'default-value',
   );
 
-  const updateButtonClick = () => {
-    updateCookie('new-cookie-value');
-  };
-
-  const deleteButtonClick = () => {
-    updateCookie(undefined);
-  };
-
-  const change = () => {
-    if ('cookieStore' in window) {
-      const store = window.cookieStore as any;
-      store.set({ name: cookieName, value: 'changed' });
-    } else {
-      document.cookie = `${cookieName}=changed; path=/`;
-    }
-  };
-
   return (
-    <div>
-      <p>点击按钮更新或清除cookie</p>
-      <p color="blue">cookie: {cookieValue || 'no value'}</p>
-      <button onClick={updateButtonClick}>更新 cookie</button>
-      <button onClick={deleteButtonClick}>清除 cookie</button>
-      <button onClick={change}>通过别的方式修改cookie</button>
-      <button onClick={refreshCookie}>刷新 cookie</button>
+    <div style={styles.card}>
+      <span style={styles.label}>cookie["{cookieName}"]</span>
+      <div style={styles.value}>{cookieValue || <em style={{ color: '#94A3B8' }}>empty</em>}</div>
+      <div style={styles.row}>
+        <button style={{ ...styles.btn, ...styles.primary }} onClick={() => updateCookie('new-value')}>
+          Set new-value
+        </button>
+        <button style={{ ...styles.btn, ...styles.danger }} onClick={() => updateCookie(undefined)}>
+          Delete
+        </button>
+        <button style={{ ...styles.btn, ...styles.secondary }} onClick={() => {
+          document.cookie = `${cookieName}=external-change; path=/`;
+        }}>
+          External Change
+        </button>
+        <button style={{ ...styles.btn, ...styles.muted }} onClick={refreshCookie}>
+          Refresh
+        </button>
+      </div>
     </div>
   );
 };
@@ -76,7 +80,7 @@ export default () => {
 | -------- | --------------------- | ----------------------------- | ------- |
 | path     | Cookie 路径           | `string`                      | `'/'`   |
 | domain   | Cookie 域名           | `string`                      | -       |
-| maxAge   | 过期时间（秒）        | `number`                      | -       |
+| maxAge   | 过期时间(秒)        | `number`                      | -       |
 | expires  | 过期日期              | `Date`                        | -       |
 | secure   | 是否只通过 HTTPS 传输 | `boolean`                     | `false` |
 | sameSite | 跨站点请求设置        | `'strict' \| 'lax' \| 'none'` | -       |

@@ -9,30 +9,31 @@ export interface IOption {
   height?: number;
   backgroundColor?: string;
 }
-const MOUSEENTER = 'mouseenter',
-  MOUSELEAVE = 'mouseleave',
-  MOUSEOUT = 'mouseout',
-  MOUSEOVER = 'mouseover',
-  MOUSEDOWN = 'mousedown',
-  MOUSEMOVE = 'mousemove',
-  MOUSEUP = 'mouseup',
-  CONTEXTMENU = 'contextmenu',
-  CLICK = 'click',
-  DBCLICK = 'dblclick',
-  WHEEL = 'wheel',
-  EVENTS = [
-    [MOUSEENTER, '_mouseenter'],
-    [MOUSEDOWN, '_mousedown'],
-    [MOUSEMOVE, '_mousemove'],
-    [MOUSELEAVE, '_mouseleave'],
-    [MOUSEUP, '_mouseup'],
-    [MOUSEOUT, '_mouseout'],
-    [MOUSEOVER, '_mouseover'],
-    [CONTEXTMENU, '_contextmenu'],
-    [WHEEL, '_wheel'],
-    [CLICK, '_click'],
-    [DBCLICK, '_dblclick'],
-  ];
+
+interface EventConfig {
+  /** 是否在非 Stage 实例上跳过(mouseenter/mouseleave) */
+  guardStage?: boolean;
+  /** 是否阻止默认行为(contextmenu) */
+  preventDefault?: boolean;
+}
+
+/**
+ * DOM 事件 → fire 事件名 → 额外配置
+ */
+const EVENT_CONFIG: Array<[string, string, EventConfig?]> = [
+  ['mouseenter', 'mouseenter', { guardStage: true }],
+  ['mouseleave', 'mouseleave', { guardStage: true }],
+  ['mousedown', 'mousedown'],
+  ['mousemove', 'mousemove'],
+  ['mouseup', 'mouseup'],
+  ['mouseout', 'mouseout'],
+  ['mouseover', 'mouseover'],
+  ['contextmenu', 'contextmenu', { preventDefault: true }],
+  ['wheel', 'wheel'],
+  ['click', 'click'],
+  ['dblclick', 'dblclick'],
+];
+
 class Stage extends Container {
   name = 'Stage';
   parent = null;
@@ -45,6 +46,8 @@ class Stage extends Container {
   _pointerPositions: (Vector2d & { id?: number })[] = [];
   _changedPointerPositions: (Vector2d & { id: number })[] = [];
   pointerPos: Vector2d | null = null;
+  private _eventHandlers: Array<[string, (evt: any) => void]> = [];
+
   constructor() {
     super();
     this.content = null;
@@ -54,9 +57,10 @@ class Stage extends Container {
     this.isFirstRender = true;
     this.draggable = false;
   }
-  // 构建画布 layout
+
+  // ── DOM 构建 ──
+
   buildContentDOM(config: IOption) {
-    // 检查 config.container 是否是 HTMLElement
     if (!(config.container instanceof HTMLElement)) {
       throw new Error('The provided variable is not an HTMLElement.');
     }
@@ -77,15 +81,28 @@ class Stage extends Container {
     );
     this._bindContentEvents();
   }
-  // 将画布添加到 DOM 中
+
   setContainer(width: number, height: number, backgroundColor?: string) {
     if (this.content && this.canvas) {
       this.canvas.getCanvasDom(width, height, backgroundColor);
       this.content.appendChild(this.canvas.canvas);
     }
   }
-  // 销毁画布
+
+  // ── 销毁 ──
+
   destroy() {
+    // 清理 DOM 事件监听
+    if (this.content?.removeEventListener) {
+      this._eventHandlers.forEach(([event, handler]) => {
+        this.content?.removeEventListener(event, handler);
+      });
+    }
+    this._eventHandlers = [];
+    // 移除 canvas DOM
+    if (this.content && this.canvas?.canvas?.parentNode === this.content) {
+      this.content.removeChild(this.canvas.canvas);
+    }
     this.content = null;
     this.canvas = null;
     this.pointerPos = null;
@@ -93,7 +110,9 @@ class Stage extends Container {
     this.height = 0;
     this.draggable = false;
   }
-  // 监听窗口大小变化
+
+  // ── resize ──
+
   _resizeDOM() {
     if (this.content && this.canvas) {
       this.width = this.content.offsetWidth;
@@ -102,147 +121,46 @@ class Stage extends Container {
       if (this.canvas?.context) this.batchDraw(this);
     }
   }
+
+  // ── 指针坐标 ──
+
   setPointersPositions(evt: MouseEvent) {
-    if (!this.content || !this.content.getBoundingClientRect) {
-      return {
-        top: 0,
-        left: 0,
-        scaleX: 1,
-        scaleY: 1,
-      };
+    if (!this.content?.getBoundingClientRect) {
+      return { top: 0, left: 0, scaleX: 1, scaleY: 1 };
     }
-
-    let rect = this.content.getBoundingClientRect();
-
-    let contentPosition = {
-        top: rect.top,
-        left: rect.left,
-        scaleX: rect.width / this.content.clientWidth || 1,
-        scaleY: rect.height / this.content.clientHeight || 1,
-      },
-      x: number | null = null,
-      y: number | null = null;
-    // mouse events
-    x = (evt.clientX - contentPosition.left) / contentPosition.scaleX;
-    y = (evt.clientY - contentPosition.top) / contentPosition.scaleY;
+    const rect = this.content.getBoundingClientRect();
+    const scaleX = rect.width / this.content.clientWidth || 1;
+    const scaleY = rect.height / this.content.clientHeight || 1;
     this.pointerPos = {
-      x: x,
-      y: y,
+      x: (evt.clientX - rect.left) / scaleX,
+      y: (evt.clientY - rect.top) / scaleY,
     };
   }
-  // 绑定监听
-  _bindContentEvents() {
-    if (!this?.content?.addEventListener) return;
-    EVENTS.forEach(([event, methodName]) => {
-      this.content?.addEventListener(
-        event,
-        (evt) => {
-          // @ts-ignore
-          this[methodName](evt);
-        },
-        { passive: false },
-      );
-    });
-  }
-  // 鼠标进入
-  _mouseenter(evt: MouseEvent) {
-    if (!isStage(this)) return;
+
+  // ── 事件绑定(配置驱动) ──
+
+  /** 通用事件处理器 — 替代原来的 11 个 _mouseXxx 方法 */
+  private _handleEvent(
+    fireEvent: string,
+    evt: MouseEvent,
+    config?: EventConfig,
+  ) {
+    if (config?.guardStage && !isStage(this)) return;
+    if (config?.preventDefault) evt.preventDefault();
     this.setPointersPositions(evt);
-    this.fire('mouseenter', {
-      evt: evt,
-      target: this,
-      currentTarget: this,
-    });
-  }
-  // 鼠标离开
-  _mouseleave(evt: MouseEvent) {
-    if (!isStage(this)) return;
-    this.setPointersPositions(evt);
-    this.fire('mouseleave', {
-      evt: evt,
-      target: this,
-      currentTarget: this,
-    });
-  }
-  // 鼠标进入（事件冒泡）
-  _mouseout(evt: MouseEvent) {
-    this.setPointersPositions(evt);
-    this.fire('mouseup', {
-      evt: evt,
-      target: this,
-      currentTarget: this,
-    });
-  }
-  // 鼠标离开（事件冒泡）
-  _mouseover(evt: MouseEvent) {
-    this.setPointersPositions(evt);
-    this.fire('mouseup', {
-      evt: evt,
-      target: this,
-      currentTarget: this,
-    });
-  }
-  // 当用户按下鼠标按钮时触发。
-  _mousedown(evt: MouseEvent) {
-    this.setPointersPositions(evt);
-    this.fire('mousedown', {
-      evt: evt,
-      target: this,
-      currentTarget: this,
-    });
-  }
-  // 当鼠标在元素上移动时触发。
-  _mousemove(evt: MouseEvent) {
-    this.setPointersPositions(evt);
-    this.fire('mousemove', {
-      evt: evt,
-      target: this,
-      currentTarget: this,
-    });
-  }
-  // 当用户松开鼠标按钮时触发。
-  _mouseup(evt: MouseEvent) {
-    this.setPointersPositions(evt);
-    this.fire('mouseup', {
-      evt: evt,
-      target: this,
-      currentTarget: this,
-    });
+    this.fire(fireEvent, { evt, target: this, currentTarget: this });
   }
 
-  // 当用户右键点击时触发
-  _contextmenu(evt: MouseEvent) {
-    evt.preventDefault();
-    this.setPointersPositions(evt);
-    this.fire('contextmenu', {
-      evt: evt,
-      target: this,
-      currentTarget: this,
-    });
-  }
-  _wheel(evt: MouseEvent) {
-    this.setPointersPositions(evt);
-    this.fire('wheel', {
-      evt: evt,
-      target: this,
-      currentTarget: this,
-    });
-  }
-  _click(evt: MouseEvent) {
-    this.setPointersPositions(evt);
-    this.fire('click', {
-      evt: evt,
-      target: this,
-      currentTarget: this,
-    });
-  }
-  _dblclick(evt: MouseEvent) {
-    this.setPointersPositions(evt);
-    this.fire('dblclick', {
-      evt: evt,
-      target: this,
-      currentTarget: this,
+  _bindContentEvents() {
+    if (!this.content?.addEventListener) return;
+    EVENT_CONFIG.forEach(([domEvent, fireEvent, config]) => {
+      const handler = (evt: Event) => {
+        this._handleEvent(fireEvent, evt as MouseEvent, config);
+      };
+      this._eventHandlers.push([domEvent, handler]);
+      this.content?.addEventListener(domEvent, handler, { passive: false });
     });
   }
 }
+
 export default Stage;

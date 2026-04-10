@@ -2,7 +2,8 @@ import { isStage } from 'heitu/canvas/utils';
 import { isFunction } from 'heitu/utils/is';
 import { forIn, isEmpty } from 'lodash-es';
 import Stage from '../stage';
-import { ChildType } from '../stage/container';
+import Container, { ChildType } from '../stage/container';
+import { handleDragStart, handleDragMove, handleDragEnd } from './drag';
 
 export type ICoord = { x: number; y: number };
 type NodeEventMap = GlobalEventHandlersEventMap & {
@@ -30,53 +31,31 @@ abstract class Node {
   } = {};
 
   abstract parent?: Stage | null;
+
   on<K extends keyof NodeEventMap>(
     evtStr: K,
     handler: EventListener<this, NodeEventMap[K]>,
   ) {
-    let events = (evtStr as string).split(' '),
-      len = events.length,
-      n,
-      event,
-      parts,
-      baseEvent;
-
-    for (n = 0; n < len; n++) {
-      event = events[n];
-      parts = event.split('.');
-      baseEvent = parts[0];
-
+    const events = (evtStr as string).split(' ');
+    for (let n = 0; n < events.length; n++) {
+      const parts = events[n].split('.');
+      const baseEvent = parts[0];
       if (!this.eventListeners[baseEvent]) {
         this.eventListeners[baseEvent] = [];
       }
-
       this.eventListeners[baseEvent].push({
         name: handler?.name || '',
-        handler: handler,
+        handler,
       });
-      // if (this?.parent && isStage(this?.parent)) {
-      //   if (!this?.parent.shapeEventListeners[baseEvent]) {
-      //     this.parent.shapeEventListeners[baseEvent] = [];
-      //   }
-
-      //   this.parent.shapeEventListeners[baseEvent].push({
-      //     name: handler.name || '',
-      //     handler: handler,
-      //   });
-      // }
     }
     return this;
   }
+
   _off(type: string, name?: string, callback?: (params: any) => void) {
-    let evtListeners = this.eventListeners[type],
-      i,
-      evtName,
-      handler;
-
-    for (i = 0; i < evtListeners.length; i++) {
-      evtName = evtListeners[i].name;
-      handler = evtListeners[i].handler;
-
+    const evtListeners = this.eventListeners[type];
+    for (let i = 0; i < evtListeners.length; i++) {
+      const evtName = evtListeners[i].name;
+      const handler = evtListeners[i].handler;
       if ((!name || evtName === name) && (!callback || callback === handler)) {
         evtListeners.splice(i, 1);
         if (evtListeners.length === 0) {
@@ -87,27 +66,19 @@ abstract class Node {
       }
     }
   }
+
   off(evtStr?: string, callback?: (params: any) => void) {
-    let events = (evtStr || '').split(' '),
-      len = events.length,
-      n,
-      t,
-      event,
-      parts,
-      baseEvent,
-      name;
-    for (n = 0; n < len; n++) {
-      event = events[n];
-      parts = event.split('.');
-      baseEvent = parts[0];
-      name = parts[1];
+    const events = (evtStr || '').split(' ');
+    for (let n = 0; n < events.length; n++) {
+      const parts = events[n].split('.');
+      const baseEvent = parts[0];
+      const name = parts[1];
       if (baseEvent) {
         if (this.eventListeners[baseEvent]) {
           this._off(baseEvent, name, callback);
         }
       } else {
-        // eslint-disable-next-line guard-for-in
-        for (t in this.eventListeners) {
+        for (const t in this.eventListeners) {
           this._off(t, name, callback);
         }
       }
@@ -115,9 +86,10 @@ abstract class Node {
     return this;
   }
 
+  /** 触发单个节点 / Stage 上的事件监听器 */
   _fire(eventType: string, evt: MouseEvent, currentTarget: any) {
     if (isStage(currentTarget)) {
-      this.eventListeners[eventType].forEach((item) => {
+      this.eventListeners[eventType]?.forEach((item) => {
         item.handler(evt);
       });
     } else {
@@ -129,8 +101,9 @@ abstract class Node {
         );
       }
       if (currentTarget?.draggable) {
-        if (isFunction(currentTarget?.draggable) && currentTarget.dragging)
-          currentTarget?.draggable(evt, currentTarget);
+        if (isFunction(currentTarget?.draggable) && currentTarget.dragging) {
+          currentTarget.draggable(evt, currentTarget);
+        }
         currentTarget.eventListeners?.[eventType]?.forEach(
           (item: { handler: (evt: MouseEvent, node: any) => void }) => {
             item.handler(evt, currentTarget);
@@ -140,6 +113,11 @@ abstract class Node {
     }
   }
 
+  /**
+   * 事件分发入口:
+   * Stage 级别 → 触发自身监听 → 处理拖拽 → 冒泡到子节点
+   * Shape 级别 → 拖拽状态机 → 碰撞检测 + 事件触发 → mouseenter/leave 合成
+   */
   fire(
     eventType: string,
     {
@@ -149,146 +127,97 @@ abstract class Node {
     }: { evt: MouseEvent; target: Stage; currentTarget: any },
   ) {
     if (isStage(currentTarget)) {
-      if (
-        !this.eventListeners[eventType] ||
-        this.eventListeners[eventType].length < 1
-      ) {
-        this.eventListeners[eventType] = [];
-      }
+      this._ensureEventList(eventType);
       this._fire(eventType, evt, currentTarget);
-      // 将时间推送到最顶层中
-      const children = (target as Stage)?.children;
-      for (let i = 0; i < children.length; i++) {
-        const dragShapes = [...children.filter((item: any) => item.draggable)];
-        // 拖拽 按下
-        if (eventType === 'mousedown') {
-          const inScopeDragShape = dragShapes.filter((item: any) => {
-            return item?.inScope(evt, target.canvas?.context);
-          });
-          const topInScopeDragShape = inScopeDragShape.sort(
-            (a: any, b: any) => b.index - a.index,
-          )[0];
+      this._dispatchToChildren(eventType, evt, target);
+    } else {
+      this._handleShapeEvent(eventType, evt, target, currentTarget);
+    }
+  }
 
-          if (topInScopeDragShape) {
-            if ((topInScopeDragShape as any).name === 'Group') {
-              (topInScopeDragShape as any).dragging = true;
-              (topInScopeDragShape as any).children.forEach((child: any) => {
-                // child.dragging = true;
-                child.offsetX = child?.x ? evt.offsetX - child?.x : evt.offsetX;
-                // @ts-ignore
-                child.offsetY = child?.y
-                  ? // @ts-ignore
-                    evt.offsetY - child?.y
-                  : evt.offsetY;
-              });
-            } else {
-              (topInScopeDragShape as any).dragging = true;
-              (topInScopeDragShape as any).offsetX = (
-                topInScopeDragShape as any
-              )?.x
-                ? evt.offsetX - (topInScopeDragShape as any)?.x
-                : evt.offsetX;
-              // @ts-ignore
-              topInScopeDragShape.offsetY = topInScopeDragShape?.y
-                ? // @ts-ignore
-                  evt.offsetY - topInScopeDragShape?.y
-                : evt.offsetY;
-            }
-          }
-        }
-        const currentChild = children[i] as ChildType;
-        if (!isEmpty(currentChild?.eventListeners) || currentChild?.draggable) {
-          this.fire(eventType, {
-            evt,
-            target: target,
-            currentTarget: currentChild,
-          });
-        }
+  // ── 以下为 fire 拆出的私有方法 ──
+
+  /** 确保 eventListeners[type] 已初始化 */
+  private _ensureEventList(eventType: string) {
+    if (!this.eventListeners[eventType]?.length) {
+      this.eventListeners[eventType] = [];
+    }
+  }
+
+  /** Stage → 子节点冒泡(含拖拽初始化) */
+  private _dispatchToChildren(
+    eventType: string,
+    evt: MouseEvent,
+    target: Stage,
+  ) {
+    const children = target.children;
+
+    // mousedown 拖拽初始化 — 只需执行一次(不放在循环内)
+    if (eventType === 'mousedown') {
+      handleDragStart(children, evt, target.canvas?.context);
+    }
+
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i] as ChildType;
+      if (!isEmpty(child?.eventListeners) || child?.draggable) {
+        this.fire(eventType, { evt, target, currentTarget: child });
+      }
+    }
+  }
+
+  /** Shape 级别事件处理:拖拽 + 碰撞 + mouseenter/leave 合成 */
+  private _handleShapeEvent(
+    eventType: string,
+    evt: MouseEvent,
+    target: Stage,
+    currentTarget: ChildType,
+  ) {
+    // 拖拽释放
+    if (eventType === 'mouseup') {
+      handleDragEnd(currentTarget);
+    }
+    // 拖拽移动
+    if (eventType === 'mousemove') {
+      handleDragMove(
+        currentTarget,
+        target,
+        evt,
+        this as unknown as Container,
+      );
+    }
+    // 碰撞检测 + 事件触发
+    if (!currentTarget?.inScope || !target.canvas?.context) return;
+
+    if (currentTarget.inScope(evt, target.canvas.context)) {
+      // 非 enter/leave/out/over 事件正常触发
+      if (
+        eventType !== 'mouseenter' &&
+        eventType !== 'mouseleave' &&
+        eventType !== 'mouseout' &&
+        eventType !== 'mouseover'
+      ) {
+        this._fire(eventType, evt, currentTarget);
+      }
+      // mousemove + 首次进入 → 合成 mouseenter
+      if (
+        eventType === 'mousemove' &&
+        !currentTarget.mouseInScope &&
+        currentTarget.eventListeners.mouseenter?.length > 0
+      ) {
+        currentTarget.mouseInScope = true;
+        target._fire('mouseenter', evt, currentTarget);
       }
     } else {
-      // 处理拖拽 松开
-      if (currentTarget?.draggable && eventType === 'mouseup') {
-        currentTarget.dragging = false;
-      }
-      // 处理拖拽 移动
-      if (
-        currentTarget?.draggable &&
-        currentTarget.dragging &&
-        eventType === 'mousemove'
-      ) {
-        // @ts-ignore
-        const rect = this.canvas?.canvas?.getBoundingClientRect();
-        if (currentTarget.name === 'Text') {
-          // @ts-ignore
-          const x = rect?.left ? evt.clientX - rect?.left : evt.clientX;
-          const y = rect?.top ? evt.clientY - rect?.top : evt.clientY;
-          currentTarget.x = currentTarget?.offsetX
-            ? x - currentTarget?.offsetX
-            : x;
-          currentTarget.y = currentTarget?.offsetY
-            ? y - currentTarget?.offsetY
-            : y;
-        } else if (currentTarget.name === 'Group') {
-          const x = rect?.left ? evt.clientX - rect?.left : evt.clientX;
-          const y = rect?.top ? evt.clientY - rect?.top : evt.clientY;
-          currentTarget.children.forEach((child: any) => {
-            if (child.name === 'Text') {
-              // @ts-ignore
-              const x = rect?.left ? evt.clientX - rect?.left : evt.clientX;
-              const y = rect?.top ? evt.clientY - rect?.top : evt.clientY;
-              child.x = child?.offsetX ? x - child?.offsetX : x;
-              child.y = child?.offsetY ? y - child?.offsetY : y;
-            } else {
-              child.x = child?.offsetX ? x - child?.offsetX : x;
-              child.y = child?.offsetY ? y - child?.offsetY : y;
-            }
-          });
-        } else {
-          const x = rect?.left ? evt.clientX - rect?.left : evt.clientX;
-          const y = rect?.top ? evt.clientY - rect?.top : evt.clientY;
-          currentTarget.x = currentTarget?.offsetX
-            ? x - currentTarget?.offsetX
-            : x;
-          currentTarget.y = currentTarget?.offsetY
-            ? y - currentTarget?.offsetY
-            : y;
-        }
-
-        // @ts-ignore
-        this.batchDraw(this);
-      }
-      // 处理 除了移入 鼠标事件
-      if (currentTarget?.inScope && target.canvas?.context) {
-        if (currentTarget?.inScope(evt, target.canvas?.context)) {
-          if (
-            eventType !== 'mouseenter' &&
-            eventType !== 'mouseleave' &&
-            eventType !== 'mouseout' &&
-            eventType !== 'mouseover'
-          ) {
-            this._fire(eventType, evt, currentTarget);
-          }
-          // 首先判断 stage 是否是 move 事件中 处理图形的 mouseenter mouseleave
-          if (
-            eventType === 'mousemove' &&
-            !currentTarget.mouseInScope &&
-            currentTarget.eventListeners.mouseenter?.length > 0
-          ) {
-            currentTarget.mouseInScope = true;
-            target._fire('mouseenter', evt, currentTarget);
-          }
-        } else {
-          // 处理 除了移出 鼠标事件
-          if (eventType === 'mousemove') {
-            currentTarget.mouseInScope = false;
-            if (target.eventListeners['mouseleave']?.length > 0) {
-              target._fire('mouseleave', evt, currentTarget);
-            }
-          }
+      // 移出 → 合成 mouseleave
+      if (eventType === 'mousemove') {
+        currentTarget.mouseInScope = false;
+        if (target.eventListeners['mouseleave']?.length > 0) {
+          target._fire('mouseleave', evt, currentTarget);
         }
       }
     }
   }
+
   attr(props: any) {
     if (!this.parent) return;
     forIn(props, (value, key) => {
@@ -297,4 +226,5 @@ abstract class Node {
     this.parent?.batchDraw(this.parent);
   }
 }
+
 export default Node;

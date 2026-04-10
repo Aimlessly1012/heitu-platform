@@ -11,85 +11,91 @@ order: 1
 
 ## 描述
 
-基于 canvas 中图形的事件
+使用 `on` 方法为图形绑定事件,使用 `off` 方法解绑。支持 click / mousedown / mousemove / mouseup / mouseenter / mouseleave / contextmenu 等标准鼠标事件。
 
-## 给图像添加事件监听
-
-使用 on 方法绑定事件，使用 off 方法解绑事件。
+## 给图形添加事件监听
 
 ```tsx
-import { Circle, Stage, useResizeObserver } from 'heitu';
+import { Circle, Text, Stage, useResizeObserver } from 'heitu';
 import React, { useLayoutEffect, useRef, useState } from 'react';
 
+const EVENT_COLORS: Record<string, string> = {
+  click: '#4F46E5',
+  mousedown: '#F59E0B',
+  mouseup: '#10B981',
+  mouseenter: '#06B6D4',
+  'contextmenu': '#F43F5E',
+};
+
 export default () => {
-  const [eventName, setEventName] = useState('');
+  const [log, setLog] = useState('Click or hover the circle');
+  const [eventColor, setEventColor] = useState('#94A3B8');
   const _stage = new Stage();
   const container = useRef<HTMLElement | null>(null);
 
-  const _circle1 = new Circle({
-    x: 200,
-    y: 150,
-    radius: 50,
-    strokeStyle: 'pink',
-    fillStyle: 'blue',
-    lineWidth: 2,
-    border: 2,
+  const _circle = new Circle({
+    x: 200, y: 120, radius: 55,
+    strokeStyle: '#4F46E5', fillStyle: '#EEF2FF',
+    lineWidth: 2, border: 2,
+    shadowColor: 'rgba(79,70,229,0.15)', shadowBlur: 20, shadowOffsetY: 4,
   });
-  _stage.add(_circle1);
-  const aa = (e) => {
-    setEventName('click');
-  };
-  const bb = (e) => {
-    setEventName('mousedown');
-  };
-  const cc = (e) => {
-    setEventName('mousemove');
-  };
-  const dd = (e) => {
-    setEventName('mouseup');
-  };
-  const ee = (e) => {
-    setEventName('mouseenter');
-  };
-  const ff = (e) => {
-    setEventName('contextmenu');
+
+  const _hint = new Text({
+    content: 'Interact with me', x: 200, y: 115,
+    fontSize: 12, fillStyle: '#4F46E5', textAlign: 'center',
+  });
+
+  const handleEvent = (name: string) => {
+    setLog(name);
+    setEventColor(EVENT_COLORS[name] || '#94A3B8');
   };
 
-  _circle1.on('click', aa);
-  _circle1.on('mousedown', bb);
-  _circle1.on('mousemove', cc);
-  _circle1.on('mouseup', dd);
-  _circle1.on('mouseenter', ee);
-  _circle1.on('contextmenu', ff);
+  _circle.on('click', () => handleEvent('click'));
+  _circle.on('mousedown', () => handleEvent('mousedown'));
+  _circle.on('mouseup', () => handleEvent('mouseup'));
+  _circle.on('mouseenter', () => handleEvent('mouseenter'));
+  _circle.on('contextmenu', () => handleEvent('contextmenu'));
+
+  _stage.add(_circle, _hint);
 
   useLayoutEffect(() => {
     _stage.buildContentDOM({
       container: container.current,
-      backgroundColor: '#fff',
+      backgroundColor: '#F8FAFC',
+      height: 240,
     });
-    return () => {
-      _circle1.off('click', aa);
-      _circle1.off('mousedown', bb);
-      _circle1.off('mousemove', cc);
-      _circle1.off('mouseup', dd);
-      _circle1.off('mouseenter', ee);
-      _circle1.off('contextmenu', ff);
-    };
+    return () => _stage.destroy();
   }, []);
 
   useResizeObserver(container, () => _stage._resizeDOM());
   return (
-    <>
-      {eventName}
-      <div ref={container}></div>
-    </>
+    <div style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid #E2E8F0' }}>
+      <div style={{ padding: '10px 16px', background: '#fff', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: eventColor, display: 'inline-block' }} />
+        <span style={{ fontSize: 13, fontWeight: 500, color: eventColor, fontFamily: 'monospace' }}>{log}</span>
+      </div>
+      <div ref={container} />
+    </div>
   );
 };
 ```
 
 ## API
 
-| name | description | type                                                                     | default |
-| ---- | ----------- | ------------------------------------------------------------------------ | ------- |
-| on   | 绑定事件    | (event: string, callback: (e: MouseEvent) => void,node:原生原型) => void | -       |
-| off  | 解绑定事件  | (event: string, callback: (e: MouseEvent) => void,node:原生原型) => void | -       |
+### on(eventType, handler)
+
+绑定事件监听。
+
+| 参数      | 说明       | 类型                                          |
+| --------- | ---------- | --------------------------------------------- |
+| eventType | 事件名称   | `string` (click / mousedown / mouseup / ...)  |
+| handler   | 回调函数   | `(evt: MouseEvent, node?: Shape) => void`     |
+
+### off(eventType?, handler?)
+
+解绑事件监听。不传参数则移除所有事件。
+
+| 参数      | 说明                     | 类型                                      |
+| --------- | ------------------------ | ----------------------------------------- |
+| eventType | 事件名称(可选)          | `string`                                  |
+| handler   | 要移除的回调函数(可选)   | `(evt: MouseEvent, node?: Shape) => void` |

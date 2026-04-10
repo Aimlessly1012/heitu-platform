@@ -26,42 +26,58 @@ order: 3
 ## 演示
 
 ```tsx
-import React, { useState, useEffect, useRef } from 'react';
+import React from 'react';
 import { useCancelAsyncFn, useHtAxios } from 'heitu';
 
+const styles = {
+  card: { padding: 20, background: '#F8FAFC', borderRadius: 8, border: '1px solid #E2E8F0', maxWidth: 480 },
+  tag: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 500, marginBottom: 16 },
+  dot: { width: 8, height: 8, borderRadius: '50%', display: 'inline-block' },
+  result: { padding: '12px 14px', background: '#fff', borderRadius: 6, border: '1px solid #E2E8F0', fontSize: 14, fontWeight: 600, color: '#1E293B', fontFamily: 'monospace', marginBottom: 16, minHeight: 42, display: 'flex', alignItems: 'center', gap: 8 },
+  hint: { fontSize: 12, color: '#94A3B8', marginBottom: 16 },
+  btn: { padding: '8px 20px', borderRadius: 6, border: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', background: '#4F46E5', color: '#fff' },
+};
+
 export default () => {
-  // 1. 创建 AbortController 实例
-  const controller = useRef<AbortController>();
   const htAxios = useHtAxios({
     config: { timeout: 10000 },
-    requestInterceptorsCallBack: (config) => {
-      return config;
-    },
-    responseInterceptorsCallBack: (response) => {
-      return response.data;
-    },
+    responseInterceptorsCallBack: (response) => response.data,
   });
-  const [{ loading, value }, fetch] = useCancelAsyncFn(
-    async ({ signal, cancelInterceptor }) => {
-      const response = await await htAxios.get(
-        'http://jsonplaceholder.typicode.com/posts',
-        { aa: 1 },
+
+  const [{ loading, value }, fetchList] = useCancelAsyncFn(
+    async ({ signal }) => {
+      const data = await htAxios.get(
+        'https://jsonplaceholder.typicode.com/posts',
+        {},
         { signal },
       );
-      const data = response;
       return data;
     },
     [],
   );
 
+  const count = Array.isArray(value) ? value.length : 0;
+
   return (
-    <div>
+    <div style={styles.card}>
+      <div style={{ ...styles.tag, background: loading ? '#FFFBEB' : count > 0 ? '#ECFDF5' : '#F1F5F9', color: loading ? '#F59E0B' : count > 0 ? '#10B981' : '#94A3B8' }}>
+        <span style={{ ...styles.dot, background: loading ? '#F59E0B' : count > 0 ? '#10B981' : '#94A3B8' }} />
+        {loading ? 'Fetching...' : count > 0 ? 'Loaded' : 'Ready'}
+      </div>
+
+      <div style={styles.result}>
+        <span style={{ color: '#64748B', fontWeight: 400, fontSize: 13 }}>Posts:</span>
+        <span style={{ color: '#4F46E5', fontSize: 20 }}>{count}</span>
+      </div>
+
+      <div style={styles.hint}>调试请将 Network 改为 Slow 4G，连续点击可观察请求自动取消</div>
+
       <button
-        onClick={async () => {
-          fetch();
-        }}
+        style={{ ...styles.btn, opacity: loading ? 0.6 : 1 }}
+        onClick={() => fetchList()}
+        disabled={loading}
       >
-        获取列表
+        {loading ? 'Fetching...' : 'Fetch Posts'}
       </button>
     </div>
   );

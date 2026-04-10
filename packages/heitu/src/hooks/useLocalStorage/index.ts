@@ -1,113 +1,126 @@
-/* eslint-disable @typescript-eslint/no-unused-expressions */
-import { isBrowser, noop } from 'heitu/utils/is';
+import { isBrowser } from 'heitu/utils/is';
 import {
   Dispatch,
   SetStateAction,
   useCallback,
-  useLayoutEffect,
+  useEffect,
   useRef,
   useState,
 } from 'react';
 
-type parserOptions<T> =
-  | {
-      raw: true;
-    }
+type ParserOptions<T> =
+  | { raw: true }
   | {
       raw: false;
       serializer: (value: T) => string;
       deserializer: (value: string) => T;
     };
 
+type Setter<T> = Dispatch<SetStateAction<T | undefined>>;
+type Remover = () => void;
+
+const getSerializer = <T,>(options?: ParserOptions<T>) =>
+  options
+    ? options.raw
+      ? (v: unknown) => (typeof v === 'string' ? v : JSON.stringify(v))
+      : options.serializer
+    : JSON.stringify;
+
+const getDeserializer = <T,>(options?: ParserOptions<T>) =>
+  options ? (options.raw ? (v: string) => v as unknown as T : options.deserializer) : JSON.parse;
+
+/**
+ * SSR-safe useLocalStorage。
+ * - 不在顶层条件 return（遵守 Rules of Hooks）
+ * - 默认监听 storage 事件实现跨标签页同步
+ */
 const useLocalStorage = <T>(
   key: string,
   initialValue?: T,
-  options?: parserOptions<T>,
-): [T | undefined, Dispatch<SetStateAction<T | undefined>>, () => void] => {
-  if (!isBrowser) {
-    return [initialValue as T, noop, noop];
-  }
+  options?: ParserOptions<T>,
+): [T | undefined, Setter<T>, Remover] => {
   if (!key) {
-    throw new Error('useLocalStorage key may not be falsy');
+    throw new Error('useLocalStorage: key may not be falsy');
   }
 
-  const deserializer = options
-    ? options.raw
-      ? (value: any) => value
-      : options.deserializer
-    : JSON.parse;
+  const serializerRef = useRef(getSerializer<T>(options));
+  const deserializerRef = useRef(getDeserializer<T>(options));
+  serializerRef.current = getSerializer<T>(options);
+  deserializerRef.current = getDeserializer<T>(options);
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const initializer = useRef((key: string) => {
+  const read = useCallback((): T | undefined => {
+    if (!isBrowser) return initialValue;
     try {
-      const serializer = options
-        ? options.raw
-          ? String
-          : options.serializer
-        : JSON.stringify;
-
-      const localStorageValue = localStorage.getItem(key);
-      if (localStorageValue !== null) {
-        return deserializer(localStorageValue);
-      } else {
-        initialValue && localStorage.setItem(key, serializer(initialValue));
-        return initialValue;
+      const raw = window.localStorage.getItem(key);
+      if (raw !== null) return deserializerRef.current(raw) as T;
+      if (initialValue !== undefined) {
+        window.localStorage.setItem(key, serializerRef.current(initialValue) as string);
       }
+      return initialValue;
     } catch {
-      // If user is in private mode or has storage restriction
-      // localStorage can throw. JSON.parse and JSON.stringify
-      // can throw, too.
       return initialValue;
     }
-  });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const [state, setState] = useState<T | undefined>(() =>
-    initializer.current(key),
-  );
+  const [state, setState] = useState<T | undefined>(read);
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  useLayoutEffect(() => setState(initializer.current(key)), [key]);
+  // key 变化时重新读取
+  useEffect(() => {
+    setState(read());
+  }, [key, read]);
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const set: Dispatch<SetStateAction<T | undefined>> = useCallback(
+  const set: Setter<T> = useCallback(
     (valOrFunc) => {
-      try {
+      setState((prev) => {
         const newState =
           typeof valOrFunc === 'function'
-            ? (valOrFunc as any)(state)
+            ? (valOrFunc as (p: T | undefined) => T | undefined)(prev)
             : valOrFunc;
-        if (typeof newState === 'undefined') return;
-        let value: string;
-
-        if (options)
-          if (options.raw)
-            if (typeof newState === 'string') value = newState;
-            else value = JSON.stringify(newState);
-          else if (options.serializer) value = options.serializer(newState);
-          else value = JSON.stringify(newState);
-        else value = JSON.stringify(newState);
-
-        localStorage.setItem(key, value);
-        setState(deserializer(value));
-      } catch {
-        // If user is in private mode or has storage restriction
-        // localStorage can throw. Also JSON.stringify can throw.
-      }
+        if (newState === undefined) return prev;
+        try {
+          if (isBrowser) {
+            window.localStorage.setItem(
+              key,
+              serializerRef.current(newState) as string,
+            );
+          }
+        } catch {
+          /* private mode / quota */
+        }
+        return newState;
+      });
     },
-    [key, setState],
+    [key],
   );
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const remove = useCallback(() => {
+  const remove: Remover = useCallback(() => {
     try {
-      localStorage.removeItem(key);
-      setState(undefined);
+      if (isBrowser) window.localStorage.removeItem(key);
     } catch {
-      // If user is in private mode or has storage restriction
-      // localStorage can throw.
+      /* noop */
     }
-  }, [key, setState]);
+    setState(undefined);
+  }, [key]);
+
+  // 跨标签页同步
+  useEffect(() => {
+    if (!isBrowser) return;
+    const handler = (e: StorageEvent) => {
+      if (e.key !== key || e.storageArea !== window.localStorage) return;
+      if (e.newValue === null) {
+        setState(undefined);
+        return;
+      }
+      try {
+        setState(deserializerRef.current(e.newValue) as T);
+      } catch {
+        /* ignore */
+      }
+    };
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
+  }, [key]);
 
   return [state, set, remove];
 };

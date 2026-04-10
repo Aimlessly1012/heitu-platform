@@ -28,7 +28,7 @@ function usePolling<T>(service: () => Promise<T>, options: Options<T> = {}) {
   const [data, setData] = useState<T>();
   const [error, setError] = useState<Error>();
 
-  const timerRef = useRef<NodeJS.Timeout>();
+  const timerRef = useRef<NodeJS.Timeout>(undefined);
   const retryCountRef = useRef(0);
   const pollingRef = useRef(false);
 
@@ -38,7 +38,7 @@ function usePolling<T>(service: () => Promise<T>, options: Options<T> = {}) {
     setState(State.CLOSED);
   }, []);
 
-  const start = () => {
+  const start = useCallback(() => {
     if (pollingRef.current) return;
 
     pollingRef.current = true;
@@ -78,7 +78,7 @@ function usePolling<T>(service: () => Promise<T>, options: Options<T> = {}) {
     };
 
     poll();
-  };
+  }, [service, interval, retryTimes, retryInterval, onSuccess, onError, stop]);
 
   useEffect(() => {
     if (!manual) {
@@ -87,7 +87,7 @@ function usePolling<T>(service: () => Promise<T>, options: Options<T> = {}) {
     return () => {
       stop();
     };
-  }, [manual]);
+  }, [manual, start, stop]);
 
   return {
     data,

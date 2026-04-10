@@ -5,12 +5,19 @@ import { Node as INode } from '../type';
 export interface ChildType extends Node {
   parent: Stage | null;
   index: number;
+  name: string;
+  x?: number;
+  y?: number;
+  offsetX?: number;
+  offsetY?: number;
   remove: () => void;
   destroy: () => void;
   draw: (ctx: CanvasRenderingContext2D) => void;
-  draggable?: (evt: MouseEvent) => void | boolean;
+  draggable?: ((evt: MouseEvent, node: ChildType) => void) | boolean;
   dragging: boolean;
   mouseInScope: boolean;
+  inScope?: (evt: MouseEvent, ctx?: CanvasRenderingContext2D) => boolean;
+  children?: ChildType[];
 }
 
 abstract class Container extends Node {

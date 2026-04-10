@@ -144,7 +144,7 @@ class Circle extends Node {
         circlePath = new Path2D(this.calcRingD(isWholeArc));
         // 设置绘制样式
         if (this.fillStyle) ctx.fillStyle = this.fillStyle; // 填充颜色
-        if (this.fillStyle) ctx.strokeStyle = this.fillStyle; // 描边颜色
+        if (this.strokeStyle) ctx.strokeStyle = this.strokeStyle; // 描边颜色
         if (this.lineWidth) ctx.lineWidth = this.lineWidth; // 描边宽度
         ctx.stroke(circlePath);
         ctx.fill(circlePath);

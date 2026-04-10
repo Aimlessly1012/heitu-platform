@@ -88,7 +88,7 @@ export const responseInterceptorUse = (
     );
   }
   // 添加外部响应失败拦截器
-  if (responseInterceptorOnSuccessCallback) {
+  if (responseInterceptorOnErrorCallback) {
     axiosClient.interceptors.response.use((response: AxiosResponse) => {
       return response;
     }, responseInterceptorOnErrorCallback);

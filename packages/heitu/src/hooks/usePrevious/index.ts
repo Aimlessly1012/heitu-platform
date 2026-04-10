@@ -1,16 +1,14 @@
 import { useLayoutEffect, useRef } from 'react';
 
-const usePrevious = (value: any) => {
-  const ref = useRef({});
+/**
+ * 返回上一次渲染时的值,首次渲染返回 undefined。
+ */
+function usePrevious<T>(value: T): T | undefined {
+  const ref = useRef<T | undefined>(undefined);
   useLayoutEffect(() => {
     ref.current = value;
-  });
-  useLayoutEffect(() => {
-    return () => {
-      ref.current = {};
-    };
-  }, []);
+  }, [value]);
   return ref.current;
-};
+}
 
 export default usePrevious;

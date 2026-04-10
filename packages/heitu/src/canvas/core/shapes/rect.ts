@@ -69,7 +69,7 @@ class Rect extends Node {
       path2D.lineTo(this.x + this.radius, this.y + this.height);
       path2D.arcTo(this.x, this.y + this.height,this.x, this.y + this.height - this.radius, this.radius);
       path2D.lineTo(this.x, this.y + this.radius);
-      path2D.arcTo(this.x, this.y,this. x + this.radius, this.y, this.radius);
+      path2D.arcTo(this.x, this.y, this.x + this.radius, this.y, this.radius);
     } else {
       path2D.moveTo(this.x, this.y);
       path2D.lineTo(this.x + this.width, this.y);

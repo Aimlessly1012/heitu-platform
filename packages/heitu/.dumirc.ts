@@ -4,7 +4,7 @@ export default defineConfig({
   outputPath: 'docs-dist',
   themeConfig: {
     name: 'HeiTu',
-    logo: '/HeiTu.png',
+    logo: '/docs/HeiTu.png',
     prefersColor: { default: 'dark', switch: false },
   },
   mfsu: false,

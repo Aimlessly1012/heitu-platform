@@ -1,129 +1,97 @@
-import { Animate, Circle, Stage, useResizeObserver } from 'heitu';
+import { Animate, Circle, Text, Stage, useResizeObserver } from 'heitu';
 import React, { useLayoutEffect, useRef } from 'react';
-const StageDemo = () => {
-  const container = useRef<HTMLElement | null>(null);
 
+const StageDemo1 = () => {
+  const container = useRef<HTMLElement | null>(null);
   const _stage = new Stage();
 
   const _circle1 = new Circle({
-    x: 100,
-    y: 100,
-    radius: 50,
-    fillStyle: 'pink',
-    lineWidth: 1,
-    border: 0,
+    x: 100, y: 100, radius: 45,
+    fillStyle: '#4F46E5', border: 0,
+    shadowColor: 'rgba(79,70,229,0.25)', shadowBlur: 16, shadowOffsetY: 4,
   });
+
   const _circle2 = new Circle({
-    x: 200,
-    y: 50,
-    radius: 20,
-    strokeStyle: 'blue',
-    fillStyle: 'orange',
-    lineWidth: 1,
-    border: 0,
+    x: 260, y: 80, radius: 20,
+    fillStyle: '#F59E0B', border: 0,
+    shadowColor: 'rgba(245,158,11,0.25)', shadowBlur: 12, shadowOffsetY: 3,
   });
 
-  _stage.add(_circle1, _circle2);
+  const _label1 = new Text({
+    content: 'Click me', x: 100, y: 95,
+    fontSize: 11, fillStyle: '#fff', textAlign: 'center',
+  });
 
- 
-  const onclick = () => {
+  const _label2 = new Text({
+    content: 'Breathing', x: 260, y: 115,
+    fontSize: 11, fillStyle: '#64748B', textAlign: 'center',
+  });
+
+  _stage.add(_circle1, _circle2, _label1, _label2);
+
+  // Click indigo circle -> move animation
+  _circle1.on('click', () => {
     const ani = new Animate(
       { value: 0 },
-      { value: 360 },
+      { value: 1 },
       { duration: 1000, easing: 'quadraticInOut' },
     );
+    const startX = _circle1.x;
+    const startY = _circle1.y;
+    ani.pushQueue((_, ratio) => {
+      _circle1.attr({
+        x: startX + (350 - startX) * ratio,
+        y: startY + (200 - startY) * ratio,
+      });
+      _label1.attr({
+        x: startX + (350 - startX) * ratio,
+        y: startY + (200 - startY) * ratio - 5,
+      });
+    });
     ani.start();
-    const x = _circle1.x;
-    const y = _circle1.y;
-    let curX = _circle1.x;
-    let curY = _circle1.y;
-    const onUpdate = (_, elapsedTimeRatio) => {
-      curX = (300 - curX) * elapsedTimeRatio;
-      curY = (400 - curY) * elapsedTimeRatio;
-      _circle1.attr({ x: x + curX, y: y + curY });
-    };
-    ani.pushQueue(onUpdate);
-  };
-
-  _circle1.on('click', onclick);
+  });
 
   useLayoutEffect(() => {
     _stage.buildContentDOM({
       container: container.current,
-      backgroundColor: '#fff',
+      backgroundColor: '#F8FAFC',
     });
-    const ani = new Animate(
+
+    // Breathing animation for the amber circle
+    const breathe = new Animate(
       { value: 0 },
-      { value: 3 },
-      { duration: 10000, easing: 'quadraticInOut' },
+      { value: 1 },
+      { duration: 2000, easing: 'sinusoidalInOut', iterationCount: Infinity },
     );
-    ani.start();
-    const radius = _circle2.radius;
-    let curRadius = _circle2.radius;
+    const baseRadius = _circle2.radius;
+    breathe.pushQueue((_, ratio) => {
+      _circle2.attr({ radius: baseRadius + 8 * ratio });
+    });
+    breathe.start();
 
-    const onUpdate = (_, elapsedTimeRatio) => {
-      curRadius = (radius - curRadius) * elapsedTimeRatio;
-
-      _circle2.attr({ radius: radius + curRadius });
+    return () => {
+      breathe.stop();
+      _stage.destroy();
     };
-    ani.pushQueue(onUpdate);
-    return () => ani.stop();
   }, []);
 
   useResizeObserver(container, () => _stage._resizeDOM());
 
   return (
-    <>
-      <div ref={container}></div>
-    </>
+    <div style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid #E2E8F0' }}>
+      <div style={{ padding: '8px 16px', background: '#fff', borderBottom: '1px solid #E2E8F0', display: 'flex', gap: 16, fontSize: 12, color: '#64748B' }}>
+        <span>
+          <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#4F46E5', marginRight: 6, verticalAlign: 'middle' }} />
+          Click to animate
+        </span>
+        <span>
+          <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#F59E0B', marginRight: 6, verticalAlign: 'middle' }} />
+          Auto breathing
+        </span>
+      </div>
+      <div ref={container} />
+    </div>
   );
 };
 
-export default StageDemo;
-
-// import React, { useEffect, useRef, useState } from 'react';
-
-// const CanvasAnimation = () => {
-//   const canvasRef = useRef(null);
-//   const [position, setPosition] = useState({ x: 50, y: 50 });
-
-//   useEffect(() => {
-//     const canvas = canvasRef.current;
-//     const context = canvas.getContext('2d');
-
-//     let animationFrameId;
-
-//     const draw = () => {
-//       // 清除画布
-//       context.clearRect(0, 0, canvas.width, canvas.height);
-
-//       // 绘制一个简单的圆
-//       context.beginPath();
-//       context.arc(position.x, position.y, 20, 0, 2 * Math.PI);
-//       context.fillStyle = 'blue';
-//       context.fill();
-//       context.closePath();
-
-//       // 更新位置
-//       setPosition((prev) => ({
-//         x: prev.x + 2,
-//         y: prev.y + 2,
-//       }));
-
-//       // 递归调用以更新下一帧
-//       animationFrameId = requestAnimationFrame(draw);
-//     };
-
-//     // 启动动画
-//     animationFrameId = requestAnimationFrame(draw);
-
-//     // 在组件卸载时取消动画
-//     return () => {
-//       cancelAnimationFrame(animationFrameId);
-//     };
-//   }, [position]);
-
-//   return <canvas ref={canvasRef} width={400} height={400} />;
-// };
-
-// export default CanvasAnimation;
+export default StageDemo1;

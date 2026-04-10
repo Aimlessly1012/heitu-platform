@@ -1,4 +1,4 @@
-import { calcTargetValue, easingFuncs } from 'heitu/canvas/utils';
+import { calcTargetValue, easingFuncs } from 'heitu/canvas/easing';
 
 export type AnimateCartoonConfig = {
   duration: number; // 毫秒
@@ -96,9 +96,6 @@ class Animate {
   }
   // 检查边缘
   checkEdge() {}
-  // 更新
-  // @ts-ignore
-  // onUpdate(currentProp, elapsedTimeRatio: number) {}
   // 停止
   stop() {
     if (this.rafTimer) cancelAnimationFrame(this.rafTimer);

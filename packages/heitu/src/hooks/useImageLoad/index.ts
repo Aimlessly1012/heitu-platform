@@ -39,7 +39,6 @@ const useImageLoad = ({ imgList }: { imgList: string[] }) => {
       loopGetImgUrl(imgList?.[0], 0);
     }
   }, []);
-  console.log([img, imgFT, imgAllow, loading]);
   if (imgFT.length !== imgList.length) {
     return ['', [], [], true];
   }

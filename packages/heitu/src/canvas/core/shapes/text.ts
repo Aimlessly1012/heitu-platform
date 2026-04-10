@@ -68,20 +68,21 @@ class Text extends Node {
     ctx.textBaseline = this.textBaseline as CanvasTextBaseline;
     ctx.textAlign = this.textAlign as CanvasTextAlign;
     ctx.fillStyle = this.fillStyle as string;
-    
+
+    // 阴影必须在 fillText 之前设置,否则不会作用到已绘制的文本
+    if (this.shadowColor) {
+      ctx.shadowColor = this.shadowColor;
+      ctx.shadowBlur = this.shadowBlur;
+      ctx.shadowOffsetX = this.shadowOffsetX;
+      ctx.shadowOffsetY = this.shadowOffsetY;
+    } else {
+      ctx.shadowColor = 'transparent';
+    }
+
     ctx.fillText(this.content as string, this.x, this.y);
     const textMetrics = ctx.measureText(this.content);
     this.width = textMetrics.width;
     this.height = this.fontSize;
-    if (this.shadowColor) {
-      // 设置阴影属性
-      ctx.shadowColor = this.shadowColor; // 阴影颜色
-      ctx.shadowBlur = this.shadowBlur; // 阴影模糊程度
-      ctx.shadowOffsetX = this.shadowOffsetX; // 阴影的水平偏移
-      ctx.shadowOffsetY = this.shadowOffsetY; // 阴影的垂直偏移
-    } else {
-      ctx.shadowColor = 'transparent'; // 取消阴影效果
-    }
     return this;
   }
   inScope(evt: MouseEvent) {

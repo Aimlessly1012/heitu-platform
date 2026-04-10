@@ -1,34 +1,44 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { UseDevicePixelRatio } from './interface';
 
+const isBrowser = typeof window !== 'undefined';
+
+/**
+ * SSR-safe devicePixelRatio hook。
+ * - SSR 初值为 1，客户端挂载后同步真实值
+ * - 通过 matchMedia 监听 DPR 变化（拖到不同 DPI 屏幕、缩放页面）
+ */
 const useDevicePixelRatio: UseDevicePixelRatio = () => {
-  const [pixelRatio, setPixelRatio] = useState<number>(1);
+  const [pixelRatio, setPixelRatio] = useState<number>(() =>
+    isBrowser ? window.devicePixelRatio || 1 : 1,
+  );
 
-  const observe = useCallback(() => {
-    if (!window) return;
+  useEffect(() => {
+    if (!isBrowser || typeof window.matchMedia !== 'function') return;
 
-    setPixelRatio(window.devicePixelRatio);
+    let media: MediaQueryList | null = null;
+    let cancelled = false;
 
-    const media = window.matchMedia(
-      `(resolution: ${window.devicePixelRatio}dppx)`,
-    );
+    const update = () => {
+      if (cancelled) return;
+      const next = window.devicePixelRatio || 1;
+      setPixelRatio(next);
 
-    const handleChange = () => {
-      observe();
+      // 每次变化后旧 MediaQueryList 就过期了，需要重新绑定
+      if (media) media.removeEventListener('change', update);
+      media = window.matchMedia(`(resolution: ${next}dppx)`);
+      media.addEventListener('change', update);
     };
 
-    media.addEventListener('change', handleChange, { once: true });
+    update();
 
     return () => {
-      media.removeEventListener('change', handleChange);
+      cancelled = true;
+      if (media) media.removeEventListener('change', update);
     };
   }, []);
 
-  useEffect(() => {
-    const cleanup = observe();
-    return cleanup;
-  }, [observe]);
-
   return { pixelRatio } as const;
 };
+
 export default useDevicePixelRatio;

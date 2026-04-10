@@ -103,6 +103,7 @@ class Line extends Node {
     restNormalPoints.forEach(({ x, y }) => {
       path2D.lineTo(x, y);
     });
+    this.path2D = path2D;
     return path2D;
   }
   draw(ctx: CanvasRenderingContext2D) {

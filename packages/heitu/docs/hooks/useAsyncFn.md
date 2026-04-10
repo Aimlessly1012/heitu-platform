@@ -11,12 +11,7 @@ order: 3
 
 ## 描述
 
-用于处理异步函数的 Hook，具有以下特性：
-
-- 自动处理异步状态（loading、error、value）
-- 使用深度比较进行依赖项比较
-- 支持取消和重试机制
-- 自动处理竞态条件
+用于处理异步函数的 Hook,自动管理 loading / error / value 状态,支持竞态取消。
 
 ## 演示
 
@@ -26,25 +21,36 @@ order: 3
 import React from 'react';
 import { useAsyncFn } from 'heitu';
 
-export default () => {
-  const [state, execute] = useAsyncFn(async () => {
-    const res = await new Promise<number>((resolve) => {
-      setTimeout(() => {
-        resolve(200);
-      }, 1000);
-    });
-    return res;
-  }, []);
+const styles = {
+  card: { padding: 20, background: '#F8FAFC', borderRadius: 8, border: '1px solid #E2E8F0', maxWidth: 400 },
+  result: { padding: '12px 14px', background: '#fff', borderRadius: 6, border: '1px solid #E2E8F0', marginBottom: 16, minHeight: 44, display: 'flex', alignItems: 'center', fontSize: 14 },
+  btn: { padding: '8px 20px', borderRadius: 6, border: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', background: '#4F46E5', color: '#fff' },
+  spinner: { display: 'inline-block', width: 14, height: 14, border: '2px solid #C7D2FE', borderTopColor: '#4F46E5', borderRadius: '50%', animation: 'spin 0.6s linear infinite', marginRight: 8 },
+  error: { color: '#EF4444', fontSize: 13 },
+  value: { color: '#10B981', fontWeight: 600 },
+};
 
-  const { loading, error, value } = state;
+export default () => {
+  const [state, execute] = useAsyncFn(
+    () => new Promise<number>((resolve) => setTimeout(() => resolve(200), 1000)),
+    [],
+  );
 
   return (
-    <div>
-      <button onClick={execute} disabled={loading}>
-        {loading ? '加载中...' : '获取数据'}
+    <div style={styles.card}>
+      <div style={styles.result}>
+        {state.loading && <span style={{ color: '#64748B' }}>Loading...</span>}
+        {state.error && <span style={styles.error}>{state.error.message}</span>}
+        {!state.loading && state.value !== undefined && (
+          <span style={styles.value}>Result: {state.value}</span>
+        )}
+        {!state.loading && !state.error && state.value === undefined && (
+          <span style={{ color: '#94A3B8' }}>Click the button to fetch</span>
+        )}
+      </div>
+      <button style={{ ...styles.btn, opacity: state.loading ? 0.7 : 1 }} onClick={() => execute()} disabled={state.loading}>
+        {state.loading ? 'Loading...' : 'Fetch Data'}
       </button>
-      {error && <div style={{ color: 'red' }}>错误：{error.message}</div>}
-      {value && <div>结果：{value}</div>}
     </div>
   );
 };
@@ -53,23 +59,45 @@ export default () => {
 ### 带参数调用
 
 ```tsx
+import React from 'react';
 import { useAsyncFn } from 'heitu';
 
+const styles = {
+  card: { padding: 20, background: '#F8FAFC', borderRadius: 8, border: '1px solid #E2E8F0', maxWidth: 400 },
+  result: { padding: '12px 14px', background: '#fff', borderRadius: 6, border: '1px solid #E2E8F0', marginBottom: 16, minHeight: 44, display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 },
+  row: { display: 'flex', gap: 8 },
+  btn: { padding: '8px 16px', borderRadius: 6, border: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', background: '#4F46E5', color: '#fff' },
+  tag: { padding: '2px 8px', borderRadius: 4, background: '#EEF2FF', color: '#4F46E5', fontSize: 12, fontWeight: 500 },
+};
+
 export default () => {
-  const [state, fetchUser] = useAsyncFn(async (userId: string) => {
-    const res = await new Promise<number>((resolve) => {
-      setTimeout(() => {
-        resolve(userId);
-      }, 1000);
-    });
-    return res;
-  }, []);
+  const [state, fetchUser] = useAsyncFn(
+    (userId: string) =>
+      new Promise<{ id: string; name: string }>((resolve) => {
+        setTimeout(() => resolve({ id: userId, name: `User-${userId}` }), 800);
+      }),
+    [],
+  );
 
   return (
-    <div>
-      <button onClick={() => fetchUser('123')}>获取用户信息</button>
-      {state.loading && <span>加载中...</span>}
-      {state.value && <div>用户名：{state.value}</div>}
+    <div style={styles.card}>
+      <div style={styles.result}>
+        {state.loading && <span style={{ color: '#64748B' }}>Loading...</span>}
+        {!state.loading && state.value && (
+          <>
+            <span style={styles.tag}>#{state.value.id}</span>
+            <span style={{ color: '#1E293B', fontWeight: 500 }}>{state.value.name}</span>
+          </>
+        )}
+        {!state.loading && !state.value && <span style={{ color: '#94A3B8' }}>Select a user</span>}
+      </div>
+      <div style={styles.row}>
+        {['101', '202', '303'].map((id) => (
+          <button key={id} style={styles.btn} onClick={() => fetchUser(id)}>
+            User #{id}
+          </button>
+        ))}
+      </div>
     </div>
   );
 };
@@ -82,7 +110,7 @@ export default () => {
 | 参数         | 说明                     | 类型                                                | 默认值               |
 | ------------ | ------------------------ | --------------------------------------------------- | -------------------- |
 | fn           | 要执行的异步函数         | `(...args: any[]) => Promise<any>`                  | -                    |
-| deps         | 依赖数组（使用深度比较） | `any[]`                                             | `[]`                 |
+| deps         | 依赖数组                 | `any[]`                                             | `[]`                 |
 | initialState | 初始状态                 | `{ loading?: boolean; error?: Error; value?: any }` | `{ loading: false }` |
 
 ### Result
@@ -91,11 +119,3 @@ export default () => {
 | ------- | -------------------- | -------------------------------------------------- |
 | state   | 异步操作的状态       | `{ loading: boolean; error?: Error; value?: any }` |
 | execute | 执行异步函数的触发器 | `(...args: Parameters<typeof fn>) => Promise<any>` |
-
-### State 说明
-
-| 字段    | 说明           | 类型                 |
-| ------- | -------------- | -------------------- |
-| loading | 是否正在加载   | `boolean`            |
-| error   | 错误信息       | `Error \| undefined` |
-| value   | 异步操作的结果 | `any`                |

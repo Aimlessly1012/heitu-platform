@@ -47,20 +47,22 @@ class Custom extends Node {
   }
   draw(ctx: CanvasRenderingContext2D) {
     if (!this.path2D) return;
+
+    // 阴影必须在绑定/填充之前设置
+    if (this.shadowColor && this.shadowColor !== 'transparent') {
+      ctx.shadowColor = this.shadowColor;
+      ctx.shadowBlur = this.shadowBlur;
+      ctx.shadowOffsetX = this.shadowOffsetX;
+      ctx.shadowOffsetY = this.shadowOffsetY;
+    } else {
+      ctx.shadowColor = 'transparent';
+    }
+
     if (this.fillStyle) ctx.fillStyle = this.fillStyle;
     if (this.strokeStyle) ctx.strokeStyle = this.strokeStyle;
     if (this.lineWidth) ctx.lineWidth = this.lineWidth;
     if (this.lineWidth) ctx.stroke(this.path2D);
     if (this.fillStyle) ctx.fill(this.path2D);
-    if (this.shadowColor) {
-      // 设置阴影属性
-      ctx.shadowColor = this.shadowColor; // 阴影颜色
-      ctx.shadowBlur = this.shadowBlur; // 阴影模糊程度
-      ctx.shadowOffsetX = this.shadowOffsetX; // 阴影的水平偏移
-      ctx.shadowOffsetY = this.shadowOffsetY; // 阴影的垂直偏移
-    } else {
-      ctx.shadowColor = 'transparent'; // 取消阴影效果
-    }
     return this;
   }
   inScope(evt: MouseEvent, ctx: CanvasRenderingContext2D) {

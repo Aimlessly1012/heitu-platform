@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useRef } from 'react';
+import React, { createContext, useContext, useMemo } from 'react';
 
 // 容器创建函数
 function createContainer<Value, Props = void>(
@@ -19,21 +19,13 @@ function createContainer<Value, Props = void>(
     // 调用 hook 获取状态和方法
     const value = useHook(props as Props);
 
-    // 合并初始状态
-    const mergedValue = {
-      ...value,
-      ...initialState,
-    };
-
-    // 使用 useRef 确保返回的对象引用稳定
-    const stableValue = useRef(mergedValue);
-    Object.assign(stableValue.current, mergedValue);
-
-    return (
-      <Context.Provider value={stableValue.current}>
-        {children}
-      </Context.Provider>
+    // 合并初始状态,依赖变化时才产生新引用,避免无谓的 consumer 重渲染
+    const mergedValue = useMemo(
+      () => ({ ...value, ...initialState }) as Value,
+      [value, initialState],
     );
+
+    return <Context.Provider value={mergedValue}>{children}</Context.Provider>;
   }
 
   // 自定义 hook，用于获取容器状态

@@ -13,7 +13,7 @@ const useCancelAsyncFn = <T>(
   fn: CancelableAsyncFn<T>,
   deps: DependencyList,
 ) => {
-  const controller = useRef<AbortController>();
+  const controller = useRef<AbortController>(undefined);
 
   // 清理函数
   const cleanup = () => {

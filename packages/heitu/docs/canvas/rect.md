@@ -16,42 +16,66 @@ order: 1
 ## 核心使用
 
 ```tsx
-import { Rect, Stage, useResizeObserver } from 'heitu';
+import { Rect, Text, Stage, useResizeObserver } from 'heitu';
 import React, { useLayoutEffect, useRef } from 'react';
 
 export default () => {
   const _stage = new Stage();
   const container = useRef<HTMLElement | null>(null);
+
+  // 基础矩形
   const _rect = new Rect({
-    fillStyle: 'pink',
-    x: 250,
-    y: 100,
-    width: 100,
-    height: 100,
+    fillStyle: '#4F46E5',
+    x: 40, y: 50, width: 120, height: 90,
+    radius: 8,
   });
-  const _rect1 = new Rect({
-    shadowColor: 'rgba(0, 0, 0, 0.3)', // 阴影颜色
-    shadowBlur: 50, // 阴影模糊度
-    shadowOffsetX: 10, // 阴影水平偏移
-    shadowOffsetY: 10, // 阴影垂直偏移
-    fillStyle: 'blue',
-    x: 100,
-    y: 100,
-    width: 100,
-    height: 100,
-    radius: 5,
+  const _label1 = new Text({
+    content: 'Basic', x: 100, y: 150, fontSize: 12, fillStyle: '#64748B', textAlign: 'center',
   });
 
-  _stage.add(_rect, _rect1);
+  // 带阴影 + 圆角矩形
+  const _rect1 = new Rect({
+    shadowColor: 'rgba(79,70,229,0.3)',
+    shadowBlur: 20,
+    shadowOffsetX: 4,
+    shadowOffsetY: 8,
+    fillStyle: '#818CF8',
+    x: 210, y: 50, width: 120, height: 90,
+    radius: 12,
+  });
+  const _label2 = new Text({
+    content: 'Shadow + Radius', x: 270, y: 150, fontSize: 12, fillStyle: '#64748B', textAlign: 'center',
+  });
+
+  // 描边矩形
+  const _rect2 = new Rect({
+    fillStyle: '#EEF2FF',
+    strokeStyle: '#4F46E5',
+    lineWidth: 2,
+    x: 380, y: 50, width: 120, height: 90,
+    radius: 8,
+  });
+  const _label3 = new Text({
+    content: 'Stroke', x: 440, y: 150, fontSize: 12, fillStyle: '#64748B', textAlign: 'center',
+  });
+
+  _stage.add(_rect, _label1, _rect1, _label2, _rect2, _label3);
+
   useLayoutEffect(() => {
     _stage.buildContentDOM({
       container: container.current,
-      backgroundColor: '#fff',
+      backgroundColor: '#F8FAFC',
+      height: 200,
     });
+    return () => _stage.destroy();
   }, []);
 
   useResizeObserver(container, () => _stage._resizeDOM());
-  return <div ref={container}></div>;
+  return (
+    <div style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid #E2E8F0' }}>
+      <div ref={container} />
+    </div>
+  );
 };
 ```
 

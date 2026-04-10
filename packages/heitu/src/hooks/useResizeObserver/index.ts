@@ -7,19 +7,14 @@ const useResizeObserver = (
   options: ResizeObserverOptions = defaultOptions,
 ) => {
   useEffect(() => {
+    const el = containerRef?.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
     const ob = new ResizeObserver(cb);
-
-    if (containerRef?.current) {
-      ob.observe(containerRef.current, options);
-    }
-    // 清除观察器
+    ob.observe(el, options);
     return () => {
-      if (containerRef?.current) {
-        ob.unobserve(containerRef.current);
-      }
       ob.disconnect();
     };
-  }, []);
+  }, [containerRef, cb, options]);
 };
 
 export default useResizeObserver;

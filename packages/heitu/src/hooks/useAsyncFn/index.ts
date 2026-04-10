@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-expressions */
 import { DependencyList, useCallback, useRef, useState } from 'react';
 import useMountedState from '../useMountedState';
 import { FunctionReturningPromise, PromiseType } from './interface';
@@ -46,23 +45,19 @@ export default function useAsyncFn<T extends FunctionReturningPromise>(
   const callback = useCallback((...args: Parameters<T>): ReturnType<T> => {
     const callId = ++lastCallId.current;
 
-    if (!state.loading) {
-      set((prevState) => ({ ...prevState, loading: true }));
-    }
+    set((prev) => (prev.loading ? prev : { ...prev, loading: true }));
 
     return fn(...args).then(
       (value) => {
-        isMounted() &&
-          callId === lastCallId.current &&
+        if (isMounted() && callId === lastCallId.current) {
           set({ value, loading: false });
-
+        }
         return value;
       },
       (error) => {
-        isMounted() &&
-          callId === lastCallId.current &&
+        if (isMounted() && callId === lastCallId.current) {
           set({ error, loading: false });
-
+        }
         return error;
       },
     ) as ReturnType<T>;

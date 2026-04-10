@@ -11,21 +11,26 @@ order: 1
 
 ## 描述
 
-用于获取屏幕的设备像素比
+获取并实时监听屏幕设备像素比,缩放时自动更新。
 
 ## 演示
 
 ```tsx
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useDevicePixelRatio } from 'heitu';
 
 export default () => {
   const { pixelRatio } = useDevicePixelRatio();
 
   return (
-    <div>
-      <p>当前设备像素比: {pixelRatio}</p>
-      <p>说明：在支持缩放的设备上改变缩放比例，数值会实时更新</p>
+    <div style={{ padding: 20, background: '#F8FAFC', borderRadius: 8, border: '1px solid #E2E8F0', maxWidth: 300, textAlign: 'center' }}>
+      <div style={{ fontSize: 48, fontWeight: 700, color: '#4F46E5', fontFamily: 'monospace' }}>
+        {pixelRatio}x
+      </div>
+      <div style={{ fontSize: 13, color: '#64748B', marginTop: 8 }}>Device Pixel Ratio</div>
+      <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>
+        Try Cmd+/- to zoom the page
+      </div>
     </div>
   );
 };

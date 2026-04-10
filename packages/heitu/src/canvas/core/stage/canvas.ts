@@ -24,14 +24,22 @@ export class Canvas {
   }
 
   setWidth(width: number) {
-    // take into account pixel ratio
     this.width = this.canvas.width = width * dpr;
     this.canvas.style.width = width + 'px';
   }
   setHeight(height: number) {
     this.height = this.canvas.height = height * dpr;
     this.canvas.style.height = height + 'px';
-    this.context.scale(dpr, dpr);
+  }
+  /**
+   * setSize 统一调用,设置完宽高后重置并应用一次 scale,
+   * 避免 setHeight 每次单独 scale 导致累乘变形。
+   */
+  setSize(width: number, height: number) {
+    this.setWidth(width || 0);
+    this.setHeight(height || 0);
+    // 重置变换矩阵后统一缩放,避免多次 resize 累乘
+    this.context.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
   getWidth() {
     return this.width;
@@ -42,19 +50,15 @@ export class Canvas {
   setBackgroundColor(color: string) {
     this.canvas.style.background = color;
   }
-  setSize(width: number, height: number) {
-    this.setWidth(width || 0);
-    this.setHeight(height || 0);
-  }
   getContext() {
     return this.context;
   }
   getCanvasDom(
     width: number,
     height: number,
-    // layout: HTMLElement,
     backgroundColor?: string,
   ) {
+    this.setSize(width, height);
     if (backgroundColor) this.setBackgroundColor(backgroundColor);
     return this.canvas;
   }

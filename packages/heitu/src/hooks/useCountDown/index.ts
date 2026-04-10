@@ -1,32 +1,38 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 const useCountDown = (): [number, (num?: number) => void, () => void] => {
   const [seconds, setSeconds] = useState<number>(0);
-  let timer: NodeJS.Timeout;
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const stopCountDown = () => {
-    clearTimeout(timer);
-  };
-
-  const startCountDown = (num?: number) => {
-    stopCountDown();
-    if (num) {
-      setSeconds(num);
-    } else {
-      setSeconds((prevSeconds) => prevSeconds - 1);
+  const stopCountDown = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = undefined;
     }
-  };
+  }, []);
+
+  const startCountDown = useCallback(
+    (num?: number) => {
+      stopCountDown();
+      if (num) {
+        setSeconds(num);
+      } else {
+        setSeconds((prev) => prev - 1);
+      }
+    },
+    [stopCountDown],
+  );
 
   useEffect(() => {
-    timer = setTimeout(() => {
-      if (seconds > 0) {
-        setSeconds((prevSeconds) => prevSeconds - 1);
-      } else {
-        stopCountDown();
-      }
+    if (seconds <= 0) {
+      stopCountDown();
+      return;
+    }
+    timerRef.current = setTimeout(() => {
+      setSeconds((prev) => prev - 1);
     }, 1000);
     return () => stopCountDown();
-  }, [seconds]);
+  }, [seconds, stopCountDown]);
 
   return [seconds, startCountDown, stopCountDown];
 };

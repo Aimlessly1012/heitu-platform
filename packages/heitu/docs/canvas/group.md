@@ -11,7 +11,7 @@ order: 5
 
 ## 描述
 
-将多个图形编组
+将多个图形编为一组,支持整组拖拽。组内图形共享同一坐标变换,方便批量操作。
 
 ## 核心使用
 
@@ -21,83 +21,61 @@ import React, { useLayoutEffect, useRef } from 'react';
 
 export default () => {
   const container = useRef<HTMLElement | null>(null);
-
   const _stage = new Stage();
-  const _text = new Text({
-    content: 'title',
-    x: 110,
-    y: 260,
-    index: 999,
-  });
-  const _text1 = new Text({
-    content: 'name: test',
-    x: 110,
-    y: 280,
-    index: 999,
-  });
-  const _group = new Group({});
 
-  const _group1 = new Group({ draggable: true });
-  const _circle1 = new Circle({
-    x: 100,
-    y: 100,
-    radius: 50,
-    fillStyle: 'pink',
-    lineWidth: 1,
-    border: 0,
+  // ── 静态编组 ──
+  const _circle = new Circle({
+    x: 80, y: 80, radius: 40,
+    fillStyle: '#818CF8', border: 0,
+    shadowColor: 'rgba(129,140,248,0.25)', shadowBlur: 10, shadowOffsetY: 3,
   });
   const _rect = new Rect({
-    fillStyle: 'blue',
-    x: 150,
-    y: 100,
-    width: 100,
-    height: 100,
+    fillStyle: '#4F46E5', x: 120, y: 60, width: 80, height: 60,
+    radius: 8, shadowColor: 'rgba(79,70,229,0.25)', shadowBlur: 10, shadowOffsetY: 3,
   });
-  const _rect1 = new Rect({
-    fillStyle: 'rgba(255, 255, 255, 1)',
-    x: 100,
-    y: 250,
-    width: 200,
-    height: 100,
-    shadowColor: 'rgba(0, 0, 0, 0.3)', // 阴影颜色
-    shadowBlur: 50, // 阴影模糊度
-    shadowOffsetX: 10, // 阴影水平偏移
-    shadowOffsetY: 10, // 阴影垂直偏移
-    radius: 4,
+  const staticLabel = new Text({
+    content: 'Static Group', x: 100, y: 135, fontSize: 12, fillStyle: '#64748B', textAlign: 'center',
   });
-  _group.add(_circle1, _rect);
-  _group1.add(_rect1, _text, _text1);
-  _stage.add(_group, _group1);
+  const staticGroup = new Group({});
+  staticGroup.add(_circle, _rect);
+
+  // ── 可拖拽编组(卡片) ──
+  const card = new Rect({
+    fillStyle: '#fff', x: 60, y: 190, width: 220, height: 90,
+    shadowColor: 'rgba(0,0,0,0.08)', shadowBlur: 16,
+    shadowOffsetX: 0, shadowOffsetY: 4, radius: 10,
+  });
+  const accent = new Rect({
+    fillStyle: '#4F46E5', x: 60, y: 190, width: 4, height: 90,
+    radius: 2,
+  });
+  const title = new Text({ content: 'Draggable Card', x: 80, y: 208, fontSize: 15, fillStyle: '#1E293B' });
+  const desc = new Text({ content: 'Drag to move the whole group', x: 80, y: 232, fontSize: 12, fillStyle: '#94A3B8' });
+  const dragGroup = new Group({ draggable: true });
+  dragGroup.add(card, accent, title, desc);
+
+  _stage.add(staticGroup, staticLabel, dragGroup);
 
   useLayoutEffect(() => {
     _stage.buildContentDOM({
       container: container.current,
-      backgroundColor: '#fff',
+      backgroundColor: '#F8FAFC',
+      height: 320,
     });
+    return () => _stage.destroy();
   }, []);
 
   useResizeObserver(container, () => _stage._resizeDOM());
-
   return (
-    <>
-      <div ref={container}></div>
-    </>
+    <div style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid #E2E8F0' }}>
+      <div ref={container} />
+    </div>
   );
 };
 ```
 
 ## API
 
-| name        | description                            | type                                 | default |
-| ----------- | -------------------------------------- | ------------------------------------ | ------- |
-| x           | x 坐标                                 | number                               | 0       |
-| y           | y 坐标                                 | number                               | 0       |
-| fillStyle   | 填充颜色                               | string                               | #000    |
-| strokeStyle | 描边颜色                               | string                               | #000    |
-| lineWidth   | 描边宽度                               | number                               | 1       |
-| draggable   | 是否可拖动                             | (evt: MouseEvent) => void / boolean; | false   |
-| radius      | 半径                                   | number                               | 0       |
-| startAngle  | 起始角度                               | number                               | 0       |
-| endAngle    | 结束角度                               | number                               | 0       |
-| border      | 边框 // 0 填充 1 只有边框 2 边框和填充 | number                               | 0       |
-| index       | 层级                                   | number                               | 1       |
+| 参数      | 说明               | 类型                                        | 默认值  |
+| --------- | ------------------ | ------------------------------------------- | ------- |
+| draggable | 整组是否可拖拽     | `boolean \| ((evt: MouseEvent) => void)`    | `false` |
