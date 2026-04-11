@@ -113,7 +113,8 @@ export abstract class BaseChart<T = Record<string, any>> {
 
   /** 清除所有图元，准备重绘 */
   protected clear(): void {
-    this.stage.removeChildren();
+    // 直接清空 children 数组，避免调用 child.remove()（图元未实现该方法）
+    this.stage.children = [];
   }
 
   /** 获取过滤后的数据 */
