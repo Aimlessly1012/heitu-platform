@@ -65,7 +65,10 @@ export abstract class BaseChart<T = Record<string, any>> {
 
   /** 绑定 Stage 事件 */
   private bindEvents(): void {
-    this.stage.on('mousemove', ({ evt }) => {
+    // 注意：Stage._fire 在 Stage 级别直接传 MouseEvent，不是 EventObject
+    this.stage.on('mousemove', (e: any) => {
+      const evt: MouseEvent = e instanceof MouseEvent ? e : e?.evt;
+      if (!evt) return;
       this.stage.setPointersPositions(evt);
       const canvas = this.stage.canvas!;
       const ctx = canvas.getContext();
@@ -95,7 +98,9 @@ export abstract class BaseChart<T = Record<string, any>> {
 
     // 点击事件
     if (this.config.onClickItem) {
-      this.stage.on('click', ({ evt }) => {
+      this.stage.on('click', (e: any) => {
+        const evt: MouseEvent = e instanceof MouseEvent ? e : e?.evt;
+        if (!evt) return;
         const canvas = this.stage.canvas!;
         const ctx = canvas.getContext();
         const children = this.stage.getChildren();
