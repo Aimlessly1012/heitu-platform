@@ -30,6 +30,9 @@ abstract class Node {
     [index: string]: Array<{ name: string; handler: any }>;
   } = {};
 
+  /** 挂载自定义数据（图表中用于存储原始数据项） */
+  data?: any;
+
   abstract parent?: Stage | null;
 
   on<K extends keyof NodeEventMap>(
