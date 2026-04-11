@@ -55,10 +55,11 @@ export class PieChart<T = Record<string, any>> extends BaseChart<T> {
         endAngle: config.animation ? -90 : targetEnd,
         fillStyle: colors[i % colors.length],
         border: 0,
+        index: 0,
       });
       circle.name = 'dataPie';
       circle.data = { chartData: data[i], chartIndex: i };
-      stage.add(circle);
+      stage.add(circle as any);
 
       // 入场动画
       if (config.animation) {
@@ -94,7 +95,7 @@ export class PieChart<T = Record<string, any>> extends BaseChart<T> {
           textBaseline: 'middle',
         });
         text.name = 'pieLabel';
-        stage.add(text);
+        stage.add(text as any);
       }
     });
 

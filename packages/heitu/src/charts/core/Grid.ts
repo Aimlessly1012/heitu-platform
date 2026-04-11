@@ -19,6 +19,6 @@ export function drawGrid(
       lineDash: [4, 4],
     });
     line.name = 'gridLine';
-    stage.add(line);
+    stage.add(line as any);
   });
 }

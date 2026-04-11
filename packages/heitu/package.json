@@ -46,6 +46,11 @@
       "import": "./dist/esm/components/index.js",
       "require": "./dist/components/index.js"
     },
+    "./charts": {
+      "types": "./dist/charts/index.d.ts",
+      "import": "./dist/esm/charts/index.js",
+      "require": "./dist/charts/index.js"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {

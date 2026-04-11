@@ -53,11 +53,11 @@ export class BarChart<T = Record<string, any>> extends BaseChart<T> {
         width: barWidth,
         height: config.animation ? 0 : targetH,
         fillStyle: color,
-        radius: config.radius ? config.radius[0] : 0,
       });
+      rect.radius = config.radius ? config.radius[0] : 0;
       rect.name = 'dataBar';
       rect.data = { chartData: d, chartIndex: i };
-      stage.add(rect);
+      stage.add(rect as any);
 
       // 入场动画：从底部生长
       if (config.animation) {
@@ -75,7 +75,7 @@ export class BarChart<T = Record<string, any>> extends BaseChart<T> {
 
     // 图例
     if (config.legend !== false && colorField) {
-      const uniqueLabels = [...new Set(config.data.map((d) => String((d as any)[colorField])))];
+      const uniqueLabels = Array.from(new Set(config.data.map((d) => String((d as any)[colorField]))));
       const legendItems = uniqueLabels.map((label, i) => ({
         label,
         color: colors[i % colors.length],

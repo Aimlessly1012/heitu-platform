@@ -52,7 +52,7 @@ export class LineChart<T = Record<string, any>> extends BaseChart<T> {
       lineWidth: 2,
     });
     line.name = 'dataLine';
-    stage.add(line);
+    stage.add(line as any);
 
     // 数据点
     if (config.point !== false) {
@@ -68,10 +68,11 @@ export class LineChart<T = Record<string, any>> extends BaseChart<T> {
           strokeStyle: colors[0],
           lineWidth: 2,
           border: 2,
+          index: 0,
         });
         circle.name = 'dataPoint';
         circle.data = { chartData: d, chartIndex: i };
-        stage.add(circle);
+        stage.add(circle as any);
       });
     }
 
@@ -96,10 +97,10 @@ export class LineChart<T = Record<string, any>> extends BaseChart<T> {
         width: plotArea.width,
         height: plotArea.height + 10,
         fillStyle: '#fff',
-        index: 999,
       });
+      mask.index = 999;
       mask.name = 'animMask';
-      stage.add(mask);
+      stage.add(mask as any);
       stage.batchDraw(stage);
 
       animateProps(

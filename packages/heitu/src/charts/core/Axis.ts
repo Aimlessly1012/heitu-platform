@@ -24,7 +24,7 @@ export function drawXAxis(
     lineWidth: 1,
   });
   axisLine.name = 'xAxisLine';
-  stage.add(axisLine);
+  stage.add(axisLine as any);
 
   // 刻度标签
   labels.forEach((label, i) => {
@@ -38,7 +38,7 @@ export function drawXAxis(
       textBaseline: 'top',
     });
     text.name = 'xAxisLabel';
-    stage.add(text);
+    stage.add(text as any);
   });
 }
 
@@ -63,6 +63,6 @@ export function drawYAxis(
       textBaseline: 'middle',
     });
     text.name = 'yAxisLabel';
-    stage.add(text);
+    stage.add(text as any);
   });
 }

@@ -66,11 +66,12 @@ export abstract class BaseChart<T = Record<string, any>> {
   /** 绑定 Stage 事件 */
   private bindEvents(): void {
     this.stage.on('mousemove', ({ evt }) => {
-      const pos = this.stage.setPointersPositions(evt);
+      this.stage.setPointersPositions(evt);
       const canvas = this.stage.canvas!;
       const ctx = canvas.getContext();
-      const x = (evt.clientX - pos.left) * pos.scaleX;
-      const y = (evt.clientY - pos.top) * pos.scaleY;
+      const rect = canvas.canvas?.getBoundingClientRect();
+      const x = evt.clientX - (rect?.left ?? 0);
+      const y = evt.clientY - (rect?.top ?? 0);
 
       // 碰撞检测：找到当前 hover 的数据图元
       let found = false;
@@ -108,7 +109,6 @@ export abstract class BaseChart<T = Record<string, any>> {
       });
     }
 
-    this.stage.bindEvent();
   }
 
   /** 清除所有图元，准备重绘 */

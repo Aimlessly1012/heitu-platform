@@ -41,8 +41,8 @@ export function drawLegend(config: ILegendConfig): void {
       width: dotSize,
       height: dotSize,
       fillStyle: item.active ? item.color : '#CBD5E1',
-      radius: 2,
     });
+    dot.radius = 2;
     dot.name = 'legendDot';
     dot.data = { legendIndex: i };
 
@@ -61,6 +61,6 @@ export function drawLegend(config: ILegendConfig): void {
     dot.on('click', () => onToggle(i));
     label.on('click', () => onToggle(i));
 
-    stage.add(dot, label);
+    stage.add(dot as any, label as any);
   });
 }
