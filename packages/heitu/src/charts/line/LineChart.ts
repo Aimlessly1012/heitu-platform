@@ -64,7 +64,7 @@ export class LineChart<T = Record<string, any>> extends BaseChart<T> {
           x,
           y,
           radius: pointSize,
-          fillStyle: '#fff',
+          fillStyle: '#0F172A',
           strokeStyle: colors[0],
           lineWidth: 2,
           border: 2,
@@ -96,7 +96,7 @@ export class LineChart<T = Record<string, any>> extends BaseChart<T> {
         y: plotArea.y - 5,
         width: plotArea.width,
         height: plotArea.height + 10,
-        fillStyle: '#fff',
+        fillStyle: '#0F172A',
       });
       mask.index = 999;
       mask.name = 'animMask';

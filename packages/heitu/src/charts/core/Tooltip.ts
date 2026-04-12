@@ -11,7 +11,9 @@ export class Tooltip {
     Object.assign(this.el.style, {
       position: 'absolute',
       pointerEvents: 'none',
-      backgroundColor: 'rgba(0, 0, 0, 0.75)',
+      backgroundColor: 'rgba(30, 41, 59, 0.92)',
+      border: '1px solid rgba(148, 163, 184, 0.2)',
+      backdropFilter: 'blur(8px)',
       color: '#fff',
       padding: '6px 10px',
       borderRadius: '4px',

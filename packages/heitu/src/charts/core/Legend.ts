@@ -40,7 +40,7 @@ export function drawLegend(config: ILegendConfig): void {
       y,
       width: dotSize,
       height: dotSize,
-      fillStyle: item.active ? item.color : '#CBD5E1',
+      fillStyle: item.active ? item.color : '#475569',
     });
     dot.radius = 2;
     dot.name = 'legendDot';
@@ -51,7 +51,7 @@ export function drawLegend(config: ILegendConfig): void {
       x: x + dotSize + 4,
       y: y - 1,
       content: item.label,
-      fillStyle: item.active ? '#334155' : '#94A3B8',
+      fillStyle: item.active ? '#E2E8F0' : '#64748B',
       fontSize: 11,
     });
     label.name = 'legendLabel';

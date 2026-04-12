@@ -20,7 +20,7 @@ export function drawXAxis(
   const axisLine = new Line({
     start: { x: plotArea.x, y },
     end: { x: plotArea.x + plotArea.width, y },
-    strokeStyle: '#E2E8F0',
+    strokeStyle: '#334155',
     lineWidth: 1,
   });
   axisLine.name = 'xAxisLine';
@@ -32,7 +32,7 @@ export function drawXAxis(
       x: positions[i],
       y: y + 8,
       content: label,
-      fillStyle: '#64748B',
+      fillStyle: '#94A3B8',
       fontSize: 11,
       textAlign: 'center',
       textBaseline: 'top',
@@ -57,7 +57,7 @@ export function drawYAxis(
       x: plotArea.x - 8,
       y,
       content: String(tick),
-      fillStyle: '#64748B',
+      fillStyle: '#94A3B8',
       fontSize: 11,
       textAlign: 'right',
       textBaseline: 'middle',

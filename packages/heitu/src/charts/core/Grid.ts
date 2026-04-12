@@ -14,7 +14,7 @@ export function drawGrid(
     const line = new Line({
       start: { x: plotArea.x, y },
       end: { x: plotArea.x + plotArea.width, y },
-      strokeStyle: '#F1F5F9',
+      strokeStyle: '#1E293B',
       lineWidth: 1,
       lineDash: [4, 4],
     });

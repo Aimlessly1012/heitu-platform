@@ -26,7 +26,7 @@ export abstract class BaseChart<T = Record<string, any>> {
       container,
       width,
       height,
-      backgroundColor: '#fff',
+      backgroundColor: 'transparent',
     });
 
     // 计算绘图区域

@@ -89,7 +89,7 @@ export class PieChart<T = Record<string, any>> extends BaseChart<T> {
           x: lx,
           y: ly,
           content: labels[i],
-          fillStyle: labelType === 'inner' ? '#fff' : '#334155',
+          fillStyle: labelType === 'inner' ? '#fff' : '#CBD5E1',
           fontSize: 11,
           textAlign: 'center',
           textBaseline: 'middle',
