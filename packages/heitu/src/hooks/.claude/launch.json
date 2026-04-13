@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "docs",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["dumi", "dev"],
+      "port": 8000,
+      "cwd": "../../"
+    }
+  ]
+}
