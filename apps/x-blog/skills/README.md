@@ -34,6 +34,45 @@
   - 支持 X、LinkedIn、Threads、Mastodon
   - 媒体上传支持
 
+### 4. **heitu-hooks**
+- **功能：** HeiTu React Hooks 开发指南
+- **触发：** 使用 useAsyncFn、useWebSocket、usePolling、useLocalStorage 等 hooks 时
+- **核心功能：**
+  - 异步状态管理（useAsyncFn、useCancelAsyncFn）
+  - 轮询与 WebSocket 连接
+  - 本地存储 / 会话存储 / Cookie
+  - DOM 尺寸与视口检测
+  - 无限滚动、倒计时、图片预加载
+
+### 5. **heitu-canvas**
+- **功能：** HeiTu Canvas 2D 引擎开发指南
+- **触发：** 绑定 canvas、绘制图形（Rect/Circle/Text/Line/Custom）、拖拽、动画时
+- **核心功能：**
+  - Stage 舞台 + 图形（Rect、Circle、Text、Line、Custom、Group）
+  - 事件系统（click、mouseenter、drag 等）
+  - Animate 补间动画
+  - 分组与层级管理
+
+### 6. **heitu-charts**
+- **功能：** HeiTu Charts 图表库开发指南
+- **触发：** 创建折线图、柱状图、饼图/环形图、柱线混合图时
+- **核心功能：**
+  - 折线图（单线/多线/平滑曲线）
+  - 柱状图（颜色映射/圆角/动画）
+  - 饼图/环形图（点击弹出）
+  - 柱状折线混合图（双 Y 轴）
+  - React 组件 + 命令式 API
+
+### 7. **heitu-formrender**
+- **功能：** HeiTu FormRender JSON 驱动表单开发指南
+- **触发：** 创建表单、配置联动、异步数据源、注册自定义控件时
+- **核心功能：**
+  - 19 种内置控件
+  - Watch 字段联动 + watchClean 级联清空
+  - Service 异步数据源（内置竞态保护）
+  - 多列布局（二维数组自动计算 span）
+  - 自定义控件注册（全局/Provider 作用域）
+
 ## 🚀 使用方法
 
 ### x-article-to-blog 使用示例
