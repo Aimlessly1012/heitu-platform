@@ -51,13 +51,13 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-COPY --from=builder /app/apps/x-blog/public ./public
+COPY --from=builder /app/apps/x-blog/public ./apps/x-blog/public
 COPY --from=builder /app/apps/x-blog/.next/standalone ./
 COPY --from=builder /app/apps/x-blog/.next/static ./apps/x-blog/.next/static
 
-RUN mkdir -p /app/data && \
+RUN mkdir -p /app/apps/x-blog/data && \
     mkdir -p /app/apps/x-blog/.next/cache && \
-    chown -R nextjs:nodejs /app/data /app/apps/x-blog/.next
+    chown -R nextjs:nodejs /app/apps/x-blog/data /app/apps/x-blog/.next
 
 USER nextjs
 
