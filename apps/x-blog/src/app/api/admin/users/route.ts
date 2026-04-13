@@ -48,7 +48,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Missing userId or status' }, { status: 400 })
     }
 
-    if (!['approved', 'rejected', 'pending'].includes(status)) {
+    if (!['approved', 'blacklisted'].includes(status)) {
       return NextResponse.json({ error: 'Invalid status' }, { status: 400 })
     }
 

@@ -7,7 +7,7 @@ export async function middleware(req: NextRequest) {
   // 放行：公开页面和静态资源
   if (
     pathname.startsWith('/login') ||
-    pathname.startsWith('/pending') ||
+    pathname.startsWith('/blacklisted') ||
     pathname.startsWith('/api/auth') ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/images') ||
@@ -40,22 +40,20 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next()
   }
 
-  // 非管理员：用 token 中的 status 做初步判断
-  // pending 页面会轮询 /api/user/status 获取最新状态并跳转
+  // 非管理员：用 token 中的 status 做判断
   const status = token.status as string
 
-  if (status === 'approved') {
-    if (pathname.startsWith('/admin')) {
-      return NextResponse.redirect(new URL('/', req.url))
+  // 黑名单用户 → 只能看黑名单提示页
+  if (status === 'blacklisted') {
+    if (!pathname.startsWith('/blacklisted')) {
+      return NextResponse.redirect(new URL('/blacklisted', req.url))
     }
     return NextResponse.next()
   }
 
-  // pending 或 rejected → 只能看等待页面
-  if (!pathname.startsWith('/pending')) {
-    const pendingUrl = new URL('/pending', req.url)
-    pendingUrl.searchParams.set('status', status || 'pending')
-    return NextResponse.redirect(pendingUrl)
+  // 正常用户：禁止访问管理后台
+  if (pathname.startsWith('/admin')) {
+    return NextResponse.redirect(new URL('/', req.url))
   }
 
   return NextResponse.next()

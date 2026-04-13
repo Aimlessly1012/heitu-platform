@@ -51,12 +51,15 @@ function initDb(database: Database.Database) {
       name TEXT,
       email TEXT,
       image TEXT,
-      status TEXT DEFAULT 'pending',
+      status TEXT DEFAULT 'approved',
       is_admin INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     )
   `)
+
+  // 迁移旧数据：将 pending/rejected 状态统一改为 approved
+  database.exec(`UPDATE users SET status = 'approved' WHERE status IN ('pending', 'rejected')`)
 }
 
 function generateId(): string {
@@ -234,7 +237,7 @@ export interface UserSession {
   name: string | null
   email: string | null
   image: string | null
-  status: 'pending' | 'approved' | 'rejected'
+  status: 'approved' | 'blacklisted'
   isAdmin: boolean
 }
 
@@ -256,7 +259,7 @@ export function findOrCreateUser(googleId: string, name: string | null, email: s
   const id = generateUserId()
   const now = new Date().toISOString()
   const isAdmin = googleId === adminGoogleId ? 1 : 0
-  const status = isAdmin ? 'approved' : 'pending'
+  const status = 'approved'
   
   database.prepare(`
     INSERT INTO users (id, google_id, name, email, image, status, is_admin, created_at, updated_at)
@@ -268,7 +271,7 @@ export function findOrCreateUser(googleId: string, name: string | null, email: s
     name,
     email,
     image,
-    status: status as 'pending' | 'approved' | 'rejected',
+    status: status as 'approved' | 'blacklisted',
     isAdmin: isAdmin === 1
   }
 }
@@ -288,7 +291,7 @@ export function getAllUsers(): UserSession[] {
   return rows.map(mapRowToUser)
 }
 
-export function updateUserStatus(googleId: string, status: 'pending' | 'approved' | 'rejected'): UserSession | null {
+export function updateUserStatus(googleId: string, status: 'approved' | 'blacklisted'): UserSession | null {
   const database = getDb()
   const now = new Date().toISOString()
   
@@ -305,7 +308,7 @@ function mapRowToUser(row: Record<string, unknown>): UserSession {
     name: row.name as string | null,
     email: row.email as string | null,
     image: row.image as string | null,
-    status: row.status as 'pending' | 'approved' | 'rejected',
+    status: row.status as 'approved' | 'blacklisted',
     isAdmin: row.is_admin === 1
   }
 }

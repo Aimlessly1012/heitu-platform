@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const user = db.prepare('SELECT status, is_admin FROM users WHERE github_id = ?').get(githubId) as any
 
     if (!user) {
-      return NextResponse.json({ status: 'pending', isAdmin: false })
+      return NextResponse.json({ status: 'approved', isAdmin: false })
     }
 
     return NextResponse.json({

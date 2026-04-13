@@ -57,7 +57,7 @@ export interface User {
   name: string | null
   email: string | null
   image: string | null
-  status: 'pending' | 'approved' | 'rejected'
+  status: 'approved' | 'blacklisted'
   isAdmin: boolean
   createdAt: string
   updatedAt: string

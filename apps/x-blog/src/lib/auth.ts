@@ -34,7 +34,7 @@ export const authOptions: NextAuthOptions = {
             user.name,
             user.email,
             user.image,
-            isAdmin ? 'approved' : 'pending',
+            'approved',
             isAdmin ? 1 : 0,
             now,
             now
