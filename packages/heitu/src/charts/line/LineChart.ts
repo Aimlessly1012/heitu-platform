@@ -17,13 +17,43 @@ export class LineChart<T = Record<string, any>> extends BaseChart<T> {
   protected render(): void {
     const { config, plotArea, stage, colors } = this;
     const data = this.getFilteredData();
-    if (!data.length) return;
+
+    // 支持多线系列：将 yField 统一为数组
+    const yFields = Array.isArray(config.yField) ? config.yField : [config.yField];
+
+    // 图例始终用完整数据，确保全部关闭后可恢复
+    if (!data.length) {
+      if (config.legend !== false) {
+        const legendPos = typeof config.legend === 'object' ? config.legend.position : 'top';
+        drawLegend({
+          stage,
+          items: yFields.map((field, idx) => ({
+            label: String(field),
+            color: colors[idx % colors.length],
+            active: !this.filteredIndices.has(idx),
+          })),
+          position: legendPos ?? 'top',
+          chartWidth: config.width ?? 400,
+          chartHeight: config.height ?? 300,
+          onToggle: (idx) => this.handleLegendToggle(idx),
+        });
+      }
+      stage.batchDraw(stage);
+      return;
+    }
 
     // 提取数据
     const categories = data.map((d) => String((d as any)[config.xField]));
-    const values = data.map((d) => Number((d as any)[config.yField]) || 0);
+
+    // 合并所有系列的值，计算统一的 Y 轴范围
+    let maxVal = 1;
+    for (const field of yFields) {
+      for (const d of data) {
+        const v = Number((d as any)[field]) || 0;
+        if (v > maxVal) maxVal = v;
+      }
+    }
     const minVal = 0;
-    const maxVal = Math.max(...values, 1);
 
     // 比例尺
     const xScale = bandScale(categories, [plotArea.x, plotArea.x + plotArea.width]);
@@ -37,51 +67,71 @@ export class LineChart<T = Record<string, any>> extends BaseChart<T> {
     drawXAxis({ stage, plotArea }, categories, xPositions);
     drawYAxis({ stage, plotArea }, yTicks, yScale);
 
-    // 折线
-    const points: number[] = [];
-    data.forEach((d, i) => {
-      const x = xScale(categories[i]);
-      const y = yScale(values[i]);
-      points.push(x, y);
-    });
+    // 遍历每个系列，绘制折线 + 数据点
+    yFields.forEach((field, seriesIdx) => {
+      // 跳过被图例过滤的系列
+      if (this.filteredIndices.has(seriesIdx)) return;
 
-    const line = new Line({
-      points,
-      smooth: config.smooth ?? false,
-      strokeStyle: colors[0],
-      lineWidth: 2,
-    });
-    line.name = 'dataLine';
-    stage.add(line as any);
+      const seriesColor = colors[seriesIdx % colors.length];
+      const values = data.map((d) => Number((d as any)[field]) || 0);
 
-    // 数据点
-    if (config.point !== false) {
-      const pointSize = typeof config.point === 'object' ? (config.point.size ?? 4) : 4;
-      data.forEach((d, i) => {
-        const x = xScale(categories[i]);
-        const y = yScale(values[i]);
-        const circle = new Circle({
-          x,
-          y,
-          radius: pointSize,
-          fillStyle: '#0F172A',
-          strokeStyle: colors[0],
-          lineWidth: 2,
-          border: 2,
-          index: 0,
-        });
-        circle.name = 'dataPoint';
-        circle.data = { chartData: d, chartIndex: i };
-        stage.add(circle as any);
+      // 折线坐标
+      const allXY = data.map((_, i) => ({
+        x: xScale(categories[i]),
+        y: yScale(values[i]),
+      }));
+
+      // 提取首尾点作为 start/end，中间点作为 points
+      const startPt = allXY[0];
+      const endPt = allXY[allXY.length - 1];
+      const middlePoints: number[] = [];
+      for (let i = 1; i < allXY.length - 1; i++) {
+        middlePoints.push(allXY[i].x, allXY[i].y);
+      }
+
+      const line = new Line({
+        start: startPt,
+        end: endPt,
+        points: middlePoints,
+        smooth: config.smooth ?? false,
+        strokeStyle: seriesColor,
+        lineWidth: 2,
       });
-    }
+      line.name = 'dataLine';
+      stage.add(line as any);
+
+      // 数据点
+      if (config.point !== false) {
+        const pointSize = typeof config.point === 'object' ? (config.point.size ?? 4) : 4;
+        data.forEach((d, i) => {
+          const { x, y } = allXY[i];
+          const circle = new Circle({
+            x,
+            y,
+            radius: pointSize,
+            fillStyle: '#0F172A',
+            strokeStyle: seriesColor,
+            lineWidth: 2,
+            border: 2,
+            index: 0,
+          });
+          circle.name = 'dataPoint';
+          circle.data = { chartData: d, chartIndex: i };
+          stage.add(circle as any);
+        });
+      }
+    });
 
     // 图例
     if (config.legend !== false) {
       const legendPos = typeof config.legend === 'object' ? config.legend.position : 'top';
       drawLegend({
         stage,
-        items: [{ label: String(config.yField), color: colors[0], active: true }],
+        items: yFields.map((field, idx) => ({
+          label: String(field),
+          color: colors[idx % colors.length],
+          active: !this.filteredIndices.has(idx),
+        })),
         position: legendPos ?? 'top',
         chartWidth: config.width ?? 400,
         chartHeight: config.height ?? 300,

@@ -31,7 +31,8 @@ export type IChartProps<T = Record<string, any>> = Omit<IChartConfig<T>, 'contai
 /** 折线图配置 */
 export interface ILineChartConfig<T = Record<string, any>> extends IChartConfig<T> {
   xField: string;
-  yField: string;
+  /** Y 轴字段，支持多字段绘制多条线 */
+  yField: string | string[];
   /** 平滑曲线 */
   smooth?: boolean;
   /** 数据点，false 不显示 */
@@ -76,6 +77,36 @@ export interface IPieChartConfig<T = Record<string, any>> extends IChartConfig<T
 }
 
 export type IPieChartProps<T = Record<string, any>> = Omit<IPieChartConfig<T>, 'container'> & {
+  style?: React.CSSProperties;
+  className?: string;
+};
+
+/** 柱状折线混合图配置 */
+export interface IBarLineChartConfig<T = Record<string, any>> extends IChartConfig<T> {
+  xField: string;
+  /** 柱状图 Y 轴字段（左轴），支持多字段绘制多组柱子 */
+  yFieldBar: string | string[];
+  /** 折线图 Y 轴字段（右轴），支持多字段绘制多条线 */
+  yFieldLine: string | string[];
+  /** 柱子宽度 */
+  barWidth?: number;
+  /** 柱子圆角 */
+  radius?: [number, number, number, number];
+  /** 平滑曲线 */
+  smooth?: boolean;
+  /** 折线数据点 */
+  point?: { size?: number } | false;
+  /** 柱状图颜色，支持多色对应多组柱子 */
+  barColor?: string | string[];
+  /** 折线图颜色，支持多色对应多条线 */
+  lineColor?: string | string[];
+  /** 左轴标签 */
+  yLabelLeft?: string;
+  /** 右轴标签 */
+  yLabelRight?: string;
+}
+
+export type IBarLineChartProps<T = Record<string, any>> = Omit<IBarLineChartConfig<T>, 'container'> & {
   style?: React.CSSProperties;
   className?: string;
 };

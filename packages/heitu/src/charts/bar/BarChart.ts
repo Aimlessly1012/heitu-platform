@@ -17,7 +17,28 @@ export class BarChart<T = Record<string, any>> extends BaseChart<T> {
   protected render(): void {
     const { config, plotArea, stage, colors } = this;
     const data = this.getFilteredData();
-    if (!data.length) return;
+
+    // 图例始终用完整数据，确保全部关闭后可恢复
+    const colorField = config.colorField;
+    if (!data.length) {
+      if (config.legend !== false && colorField) {
+        const uniqueLabels = Array.from(new Set(config.data.map((d) => String((d as any)[colorField]))));
+        drawLegend({
+          stage,
+          items: uniqueLabels.map((label, i) => ({
+            label,
+            color: colors[i % colors.length],
+            active: !this.filteredIndices.has(i),
+          })),
+          position: typeof config.legend === 'object' ? config.legend.position ?? 'top' : 'top',
+          chartWidth: config.width ?? 400,
+          chartHeight: config.height ?? 300,
+          onToggle: (idx) => this.handleLegendToggle(idx),
+        });
+      }
+      stage.batchDraw(stage);
+      return;
+    }
 
     const categories = data.map((d) => String((d as any)[config.xField]));
     const values = data.map((d) => Number((d as any)[config.yField]) || 0);
@@ -38,7 +59,6 @@ export class BarChart<T = Record<string, any>> extends BaseChart<T> {
     drawYAxis({ stage, plotArea }, yTicks, yScale);
 
     // 柱子
-    const colorField = config.colorField;
     data.forEach((d, i) => {
       const cx = xScale(categories[i]);
       const targetY = yScale(values[i]);

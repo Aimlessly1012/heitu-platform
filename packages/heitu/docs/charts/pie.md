@@ -7,6 +7,8 @@ order: 3
 
 ## 基础饼图
 
+点击任意扇区可弹出高亮，再次点击收回。
+
 ```tsx
 import React from 'react';
 import { PieChartComponent } from 'heitu/charts';
@@ -60,6 +62,45 @@ export default () => (
 );
 ```
 
+## 点击弹出交互
+
+点击扇区弹出并高亮，配合 `onClickItem` 回调获取数据。
+
+```tsx
+import React, { useState } from 'react';
+import { PieChartComponent } from 'heitu/charts';
+
+const data = [
+  { channel: '直接访问', visits: 335 },
+  { channel: '搜索引擎', visits: 580 },
+  { channel: '社交媒体', visits: 484 },
+  { channel: '广告投放', visits: 300 },
+  { channel: '邮件营销', visits: 230 },
+  { channel: '合作推荐', visits: 410 },
+];
+
+export default () => {
+  const [selected, setSelected] = useState('点击扇区查看详情');
+
+  return (
+    <div>
+      <div style={{ color: '#94A3B8', fontSize: 13, marginBottom: 8 }}>{selected}</div>
+      <PieChartComponent
+        data={data}
+        angleField="visits"
+        colorField="channel"
+        width={420}
+        height={380}
+        tooltip={{ formatter: (d) => `${d.channel}: ${d.visits} 次` }}
+        legend={{ position: 'top' }}
+        onClickItem={(item) => setSelected(`${item.channel}: ${item.visits} 次访问`)}
+        colors={['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4']}
+      />
+    </div>
+  );
+};
+```
+
 ## API
 
 ### IPieChartConfig
@@ -77,4 +118,4 @@ export default () => (
 | colors | `string[]` | 默认 8 色 | 调色板 |
 | width | `number` | 容器宽度 | 宽度 |
 | height | `number` | 300 | 高度 |
-| onClickItem | `(item, index) => void` | — | 点击回调 |
+| onClickItem | `(item, index) => void` | — | 点击扇区回调 |

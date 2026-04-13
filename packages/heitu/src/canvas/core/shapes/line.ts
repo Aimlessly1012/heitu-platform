@@ -65,29 +65,41 @@ class Line extends Node {
   }
   calcSmoothPath2D() {
     const path2D = new Path2D();
-    path2D.moveTo(this.start?.x || 0, this.start?.y || 0);
 
-    // 定义贝塞尔曲线的起点、控制点和终点
-    path2D.moveTo(this.start.x, this.start?.y);
-    // path2D.bezierCurveTo(...points, end.x, end.y);
-    if (this.points.length === 2) {
-      path2D.quadraticCurveTo(
-        this.points[0],
-        this.points[1],
-        this.end.x,
-        this.end.y,
-      );
+    // 收集所有点：start + points(中间点) + end
+    const allPoints: Vector2d[] = [
+      { x: this.start?.x || 0, y: this.start?.y || 0 },
+      ...this.convertToNormalPoints(this.points),
+      { x: this.end?.x || 0, y: this.end?.y || 0 },
+    ];
+
+    if (allPoints.length < 2) {
+      this.path2D = path2D;
+      return path2D;
     }
-    if (this.points.length === 4) {
-      path2D.bezierCurveTo(
-        this.points[0],
-        this.points[1],
-        this.points[2],
-        this.points[3],
-        this.end.x,
-        this.end.y,
-      );
+
+    path2D.moveTo(allPoints[0].x, allPoints[0].y);
+
+    if (allPoints.length === 2) {
+      // 只有两个点，直接连线
+      path2D.lineTo(allPoints[1].x, allPoints[1].y);
+    } else {
+      // Catmull-Rom 样条 → 三次贝塞尔曲线转换
+      for (let i = 0; i < allPoints.length - 1; i++) {
+        const p0 = allPoints[Math.max(i - 1, 0)];
+        const p1 = allPoints[i];
+        const p2 = allPoints[i + 1];
+        const p3 = allPoints[Math.min(i + 2, allPoints.length - 1)];
+
+        const cp1x = p1.x + (p2.x - p0.x) / 6;
+        const cp1y = p1.y + (p2.y - p0.y) / 6;
+        const cp2x = p2.x - (p3.x - p1.x) / 6;
+        const cp2y = p2.y - (p3.y - p1.y) / 6;
+
+        path2D.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+      }
     }
+
     this.path2D = path2D;
     return path2D;
   }

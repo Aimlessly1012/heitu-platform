@@ -47,22 +47,58 @@ export function drawYAxis(
   config: IAxisConfig,
   ticks: number[],
   scale: (v: number) => number,
+  color?: string,
 ): void {
   const { stage, plotArea } = config;
 
   ticks.forEach((tick) => {
     const y = scale(tick);
-    // 刻度标签
     const text = new Text({
       x: plotArea.x - 8,
       y,
       content: String(tick),
-      fillStyle: '#94A3B8',
+      fillStyle: color ?? '#94A3B8',
       fontSize: 11,
       textAlign: 'right',
       textBaseline: 'middle',
     });
     text.name = 'yAxisLabel';
+    stage.add(text as any);
+  });
+}
+
+/** 绘制右 Y 轴 */
+export function drawYAxisRight(
+  config: IAxisConfig,
+  ticks: number[],
+  scale: (v: number) => number,
+  color?: string,
+): void {
+  const { stage, plotArea } = config;
+  const rightX = plotArea.x + plotArea.width;
+
+  // 轴线
+  const axisLine = new Line({
+    start: { x: rightX, y: plotArea.y },
+    end: { x: rightX, y: plotArea.y + plotArea.height },
+    strokeStyle: '#334155',
+    lineWidth: 1,
+  });
+  axisLine.name = 'yAxisRightLine';
+  stage.add(axisLine as any);
+
+  ticks.forEach((tick) => {
+    const y = scale(tick);
+    const text = new Text({
+      x: rightX + 8,
+      y,
+      content: String(tick),
+      fillStyle: color ?? '#94A3B8',
+      fontSize: 11,
+      textAlign: 'left',
+      textBaseline: 'middle',
+    });
+    text.name = 'yAxisRightLabel';
     stage.add(text as any);
   });
 }
