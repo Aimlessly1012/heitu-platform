@@ -5,6 +5,9 @@ const nextConfig: NextConfig = {
   
   // Docker 支持：启用 standalone 输出模式
   output: 'standalone',
+
+  // 原生模块不打包，运行时通过 Node.js 标准模块解析加载
+  serverExternalPackages: ['better-sqlite3'],
   
   // 生产优化
   compress: true,
