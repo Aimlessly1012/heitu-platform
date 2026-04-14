@@ -107,12 +107,12 @@ def tavily_search(query, max_results=5, include_domains=None):
 
 
 def fetch_x_blogger_posts(authors, max_per_author=5):
-    """Search X posts from each blogger via Tavily site:x.com/username/status"""
+    """Search X posts from each blogger via Tavily"""
     all_results = []
 
     for username in authors:
-        # Search for actual tweet posts, not profile pages
-        query = f"site:x.com/{username}/status"
+        # Search for recent posts by this user
+        query = f"from:@{username} x.com/{username}/status"
         items = tavily_search(query, max_results=max_per_author, include_domains=["x.com", "twitter.com"])
 
         valid = []
