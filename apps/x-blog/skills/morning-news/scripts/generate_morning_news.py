@@ -125,8 +125,10 @@ def fetch_x_blogger_posts(authors, max_per_author=5):
             item["author"] = username
             item["source"] = f"X/@{username}"
 
-            # Clean up title
+            # Clean up title - prefer tweet content over page title
             title = item.get("title", "")
+            content = item.get("content", "")
+
             # "Username on X: \"actual tweet text\"" -> extract tweet text
             if " on X:" in title:
                 title = title.split(" on X:", 1)[1].strip().strip('"').strip()
@@ -134,7 +136,13 @@ def fetch_x_blogger_posts(authors, max_per_author=5):
                 title = title.split(" / X")[0].strip()
             # Remove "(@username)" prefix
             title = re.sub(r'^.*?\(@\w+\)\s*', '', title).strip()
-            item["title"] = title or item.get("content", "")[:80]
+
+            # If title is generic ("on X", "on X - Twitter", username only), use content
+            if not title or title.lower() in ['on x', 'on x - twitter', '', username.lower()] or len(title) < 5:
+                # Use first sentence of content as title
+                title = content.split('.')[0].split('\n')[0][:120] if content else f"@{username} post"
+
+            item["title"] = f"@{username}: {title}" if not title.startswith('@') else title
             valid.append(item)
 
         print(f"  [@{username}] {len(valid)} tweets (filtered from {len(items)} results)")
