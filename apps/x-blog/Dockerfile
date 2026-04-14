@@ -76,7 +76,6 @@ COPY --from=builder /app/apps/x-blog/.next/static ./apps/x-blog/.next/static
 COPY --from=native-builder /native/node_modules/better-sqlite3 ./node_modules/better-sqlite3
 COPY --from=native-builder /native/node_modules/bindings ./node_modules/bindings
 COPY --from=native-builder /native/node_modules/file-uri-to-path ./node_modules/file-uri-to-path
-COPY --from=native-builder /native/node_modules/node-addon-api ./node_modules/node-addon-api
 
 RUN mkdir -p /app/apps/x-blog/data && \
     mkdir -p /app/apps/x-blog/.next/cache && \
