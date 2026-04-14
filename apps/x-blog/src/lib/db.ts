@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3'
 import path from 'path'
-import { Article, CreateArticleInput, UpdateArticleInput } from './types'
+import { Article, CreateArticleInput, MorningNewsItem, UpdateArticleInput } from './types'
 
 const DB_PATH = path.join(process.cwd(), 'data', 'articles.db')
 
@@ -13,7 +13,7 @@ export function getDb(): Database.Database {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true })
     }
-    
+
     db = new Database(DB_PATH)
     db.pragma('journal_mode = WAL')
     initDb(db)
@@ -22,42 +22,55 @@ export function getDb(): Database.Database {
 }
 
 function initDb(database: Database.Database) {
+  // Morning news table (temporary, cleared daily)
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS morning_news (
+      id TEXT PRIMARY KEY,
+      url TEXT NOT NULL,
+      title TEXT,
+      content TEXT,
+      summary TEXT,
+      author TEXT,
+      author_username TEXT,
+      tags TEXT,
+      published_at TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+
+  // Articles table (permanent, featured)
   database.exec(`
     CREATE TABLE IF NOT EXISTS articles (
       id TEXT PRIMARY KEY,
       url TEXT NOT NULL UNIQUE,
-      author TEXT,
-      author_username TEXT,
       title TEXT,
       content TEXT,
       summary TEXT,
       translated_content TEXT,
       translated_summary TEXT,
       original_language TEXT,
+      author TEXT,
+      author_username TEXT,
+      tags TEXT,
       cover_image TEXT,
-      published_at TEXT,
-      status TEXT DEFAULT 'pending',
+      source_url TEXT,
+      full_content TEXT,
+      status TEXT DEFAULT 'pending_crawl',
       error TEXT,
-      is_favorited INTEGER DEFAULT 0,
+      published_at TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     )
   `)
 
-  // 迁移：为旧表添加 is_favorited 字段
-  try {
-    database.exec(`ALTER TABLE articles ADD COLUMN is_favorited INTEGER DEFAULT 0`)
-  } catch {
-    // 字段已存在，忽略
+  // Migration: add new columns to existing articles table if missing
+  const addCol = (table: string, col: string, type: string) => {
+    try { database.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`) } catch {}
   }
+  addCol('articles', 'source_url', 'TEXT')
+  addCol('articles', 'full_content', 'TEXT')
 
-  // 迁移：为旧表添加 tags 字段
-  try {
-    database.exec(`ALTER TABLE articles ADD COLUMN tags TEXT`)
-  } catch {
-    // 字段已存在，忽略
-  }
-
+  // Users table (unchanged)
   database.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
@@ -73,7 +86,6 @@ function initDb(database: Database.Database) {
     )
   `)
 
-  // 迁移旧数据：将 pending/rejected 状态统一改为 approved
   database.exec(`UPDATE users SET status = 'approved' WHERE status IN ('pending', 'rejected')`)
 }
 
@@ -81,14 +93,69 @@ function generateId(): string {
   return `art_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
 }
 
+// ==================== MORNING NEWS ====================
+
+export function clearMorningNews(): number {
+  const database = getDb()
+  const result = database.prepare('DELETE FROM morning_news').run()
+  return result.changes
+}
+
+export function insertMorningNews(item: {
+  id: string, url: string, title?: string | null, content?: string | null,
+  summary?: string | null, author?: string | null, authorUsername?: string | null,
+  tags?: string[], publishedAt?: string | null
+}): void {
+  const database = getDb()
+  database.prepare(`
+    INSERT INTO morning_news (id, url, title, content, summary, author, author_username, tags, published_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    item.id, item.url, item.title || null, item.content || null,
+    item.summary || null, item.author || null, item.authorUsername || null,
+    JSON.stringify(item.tags || []), item.publishedAt || null
+  )
+}
+
+export function getAllMorningNews(limit = 30): MorningNewsItem[] {
+  const database = getDb()
+  const rows = database.prepare(
+    'SELECT * FROM morning_news ORDER BY created_at DESC LIMIT ?'
+  ).all(limit) as Record<string, unknown>[]
+  return rows.map(mapRowToMorningNews)
+}
+
+export function getMorningNewsById(id: string): MorningNewsItem | null {
+  const database = getDb()
+  const row = database.prepare('SELECT * FROM morning_news WHERE id = ?').get(id) as Record<string, unknown> | undefined
+  return row ? mapRowToMorningNews(row) : null
+}
+
+function mapRowToMorningNews(row: Record<string, unknown>): MorningNewsItem {
+  return {
+    id: row.id as string,
+    url: row.url as string,
+    title: row.title as string | null,
+    content: row.content as string | null,
+    summary: row.summary as string | null,
+    author: row.author as string | null,
+    authorUsername: row.author_username as string | null,
+    tags: JSON.parse((row.tags as string) || '[]'),
+    publishedAt: row.published_at as string | null,
+    createdAt: row.created_at as string,
+  }
+}
+
+// ==================== ARTICLES ====================
+
 export function createArticle(input: CreateArticleInput): Article {
   const database = getDb()
   const id = generateId()
   const now = new Date().toISOString()
-  
+
   const stmt = database.prepare(`
-    INSERT INTO articles (id, url, author, author_username, title, content, summary, translated_content, translated_summary, original_language, cover_image, published_at, tags, is_favorited, status, error, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO articles (id, url, author, author_username, title, content, summary, translated_content, translated_summary, original_language, cover_image, published_at, tags, source_url, full_content, status, error, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
 
   stmt.run(
@@ -105,13 +172,14 @@ export function createArticle(input: CreateArticleInput): Article {
     input.coverImage || null,
     input.publishedAt || null,
     JSON.stringify(input.tags || []),
-    0,
-    input.status || 'pending',
+    input.sourceUrl || null,
+    input.fullContent || null,
+    input.status || 'pending_crawl',
     input.error || null,
     now,
     now
   )
-  
+
   return getArticleById(id)!
 }
 
@@ -119,9 +187,9 @@ export function getArticleById(id: string): Article | null {
   const database = getDb()
   const stmt = database.prepare('SELECT * FROM articles WHERE id = ?')
   const row = stmt.get(id) as Record<string, unknown> | undefined
-  
+
   if (!row) return null
-  
+
   return mapRowToArticle(row)
 }
 
@@ -129,9 +197,9 @@ export function getArticleByUrl(url: string): Article | null {
   const database = getDb()
   const stmt = database.prepare('SELECT * FROM articles WHERE url = ?')
   const row = stmt.get(url) as Record<string, unknown> | undefined
-  
+
   if (!row) return null
-  
+
   return mapRowToArticle(row)
 }
 
@@ -139,7 +207,15 @@ export function getAllArticles(): Article[] {
   const database = getDb()
   const stmt = database.prepare('SELECT * FROM articles ORDER BY created_at DESC')
   const rows = stmt.all() as Record<string, unknown>[]
-  
+
+  return rows.map(mapRowToArticle)
+}
+
+export function getArticlesByStatus(status: Article['status']): Article[] {
+  const database = getDb()
+  const rows = database.prepare(
+    'SELECT * FROM articles WHERE status = ? ORDER BY created_at DESC'
+  ).all(status) as Record<string, unknown>[]
   return rows.map(mapRowToArticle)
 }
 
@@ -147,12 +223,12 @@ export function updateArticle(id: string, input: UpdateArticleInput): Article | 
   const database = getDb()
   const article = getArticleById(id)
   if (!article) return null
-  
+
   const now = new Date().toISOString()
-  
+
   const updates: string[] = ['updated_at = ?']
   const values: unknown[] = [now]
-  
+
   if (input.title !== undefined) {
     updates.push('title = ?')
     values.push(input.title)
@@ -205,15 +281,23 @@ export function updateArticle(id: string, input: UpdateArticleInput): Article | 
     updates.push('error = ?')
     values.push(input.error)
   }
-  
+  if (input.sourceUrl !== undefined) {
+    updates.push('source_url = ?')
+    values.push(input.sourceUrl)
+  }
+  if (input.fullContent !== undefined) {
+    updates.push('full_content = ?')
+    values.push(input.fullContent)
+  }
+
   values.push(id)
-  
+
   const stmt = database.prepare(`
     UPDATE articles SET ${updates.join(', ')} WHERE id = ?
   `)
-  
+
   stmt.run(...values)
-  
+
   return getArticleById(id)
 }
 
@@ -237,58 +321,15 @@ function mapRowToArticle(row: Record<string, unknown>): Article {
     translatedSummary: row.translated_summary as string | null,
     originalLanguage: row.original_language as string | null,
     coverImage: row.cover_image as string | null,
+    sourceUrl: row.source_url as string | null,
+    fullContent: row.full_content as string | null,
     publishedAt: row.published_at as string | null,
     tags: JSON.parse((row.tags as string) || '[]'),
     status: row.status as Article['status'],
     error: row.error as string | null,
-    isFavorited: row.is_favorited === 1,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   }
-}
-
-// ==================== ARTICLE FAVORITES ====================
-
-export function toggleFavorite(id: string): boolean {
-  const database = getDb()
-  const article = database.prepare('SELECT is_favorited, tags FROM articles WHERE id = ?').get(id) as { is_favorited: number, tags: string } | undefined
-  if (!article) return false
-
-  const newFav = article.is_favorited === 1 ? 0 : 1
-  const now = new Date().toISOString()
-
-  // 收藏时添加 'X精选' 标签，取消收藏时移除
-  let tags: string[] = []
-  try { tags = JSON.parse(article.tags || '[]') } catch { tags = [] }
-
-  if (newFav === 1) {
-    if (!tags.includes('X精选')) tags.push('X精选')
-    // 未翻译的标记为待翻译
-    database.prepare(`
-      UPDATE articles SET is_favorited = 1, tags = ?, status = CASE WHEN translated_content IS NULL OR translated_content = '' THEN 'pending_translation' ELSE status END, updated_at = ? WHERE id = ?
-    `).run(JSON.stringify(tags), now, id)
-  } else {
-    tags = tags.filter(t => t !== 'X精选')
-    database.prepare(`UPDATE articles SET is_favorited = 0, tags = ?, updated_at = ? WHERE id = ?`).run(JSON.stringify(tags), now, id)
-  }
-
-  return newFav === 1
-}
-
-export function deleteMorningNewsBeforeDate(date: string): number {
-  const database = getDb()
-  const result = database.prepare(`
-    DELETE FROM articles WHERE id LIKE 'morning_%' AND is_favorited = 0 AND created_at < ?
-  `).run(date)
-  return result.changes
-}
-
-export function getPendingTranslationArticles(): Article[] {
-  const database = getDb()
-  const rows = database.prepare(`
-    SELECT * FROM articles WHERE status = 'pending_translation' AND is_favorited = 1 ORDER BY created_at DESC
-  `).all() as Record<string, unknown>[]
-  return rows.map(mapRowToArticle)
 }
 
 // ==================== USER MANAGEMENT ====================
@@ -308,25 +349,25 @@ function generateUserId(): string {
 
 export function findOrCreateUser(googleId: string, name: string | null, email: string | null, image: string | null, adminGoogleId: string): UserSession {
   const database = getDb()
-  
+
   // Check if user exists
   const existing = database.prepare('SELECT * FROM users WHERE google_id = ?').get(googleId) as Record<string, unknown> | undefined
-  
+
   if (existing) {
     return mapRowToUser(existing)
   }
-  
+
   // Create new user - default to pending unless they're the admin
   const id = generateUserId()
   const now = new Date().toISOString()
   const isAdmin = googleId === adminGoogleId ? 1 : 0
   const status = 'approved'
-  
+
   database.prepare(`
     INSERT INTO users (id, google_id, name, email, image, status, is_admin, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(id, googleId, name, email, image, status, isAdmin, now, now)
-  
+
   return {
     googleId,
     name,
@@ -340,9 +381,9 @@ export function findOrCreateUser(googleId: string, name: string | null, email: s
 export function getUserByGoogleId(googleId: string): UserSession | null {
   const database = getDb()
   const row = database.prepare('SELECT * FROM users WHERE google_id = ?').get(googleId) as Record<string, unknown> | undefined
-  
+
   if (!row) return null
-  
+
   return mapRowToUser(row)
 }
 
@@ -355,11 +396,11 @@ export function getAllUsers(): UserSession[] {
 export function updateUserStatus(googleId: string, status: 'approved' | 'blacklisted'): UserSession | null {
   const database = getDb()
   const now = new Date().toISOString()
-  
+
   database.prepare(`
     UPDATE users SET status = ?, updated_at = ? WHERE google_id = ?
   `).run(status, now, googleId)
-  
+
   return getUserByGoogleId(googleId)
 }
 
