@@ -106,27 +106,39 @@ def tavily_search(query, max_results=5, include_domains=None):
         return []
 
 
-def fetch_x_blogger_posts(authors, max_per_author=3):
-    """Search X posts from each blogger via Tavily site:x.com"""
+def fetch_x_blogger_posts(authors, max_per_author=5):
+    """Search X posts from each blogger via Tavily site:x.com/username/status"""
     all_results = []
 
     for username in authors:
-        query = f"from:{username} site:x.com"
+        # Search for actual tweet posts, not profile pages
+        query = f"site:x.com/{username}/status"
         items = tavily_search(query, max_results=max_per_author, include_domains=["x.com", "twitter.com"])
 
+        valid = []
         for item in items:
+            url = item.get("url", "")
+            # Only keep actual tweet URLs (contain /status/)
+            if "/status/" not in url:
+                continue
+
             item["author"] = username
             item["source"] = f"X/@{username}"
-            # clean up title - often includes site boilerplate
+
+            # Clean up title
             title = item.get("title", "")
+            # "Username on X: \"actual tweet text\"" -> extract tweet text
             if " on X:" in title:
-                title = title.split(" on X:")[1].strip().strip('"')
+                title = title.split(" on X:", 1)[1].strip().strip('"').strip()
             elif " / X" in title:
                 title = title.split(" / X")[0].strip()
-            item["title"] = title or f"@{username} post"
+            # Remove "(@username)" prefix
+            title = re.sub(r'^.*?\(@\w+\)\s*', '', title).strip()
+            item["title"] = title or item.get("content", "")[:80]
+            valid.append(item)
 
-        print(f"  [@{username}] {len(items)} posts")
-        all_results.extend(items)
+        print(f"  [@{username}] {len(valid)} tweets (filtered from {len(items)} results)")
+        all_results.extend(valid)
 
     return all_results
 
