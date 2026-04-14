@@ -43,12 +43,13 @@ function getTagClass(tag: string) {
 }
 
 const STATUS_LABELS: Record<Article['status'], string> = {
-  pending: '等待中', crawling: '爬取中', translating: '翻译中',
+  pending: '等待中', pending_translation: '待翻译', crawling: '爬取中', translating: '翻译中',
   summarizing: '总结中', completed: '已完成', failed: '失败',
 }
 
 const STATUS_COLORS: Record<Article['status'], string> = {
   pending:    'bg-white/5 text-slate-400',
+  pending_translation: 'bg-amber-500/10 text-amber-400',
   crawling:   'bg-blue-500/10 text-blue-400',
   translating: 'bg-yellow-500/10 text-yellow-400',
   summarizing: 'bg-purple-500/10 text-purple-400',
