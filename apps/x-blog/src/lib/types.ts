@@ -1,20 +1,38 @@
+// === Morning News (temporary, daily refresh) ===
+
+export interface MorningNewsItem {
+  id: string
+  url: string
+  title: string | null
+  content: string | null
+  summary: string | null
+  author: string | null
+  authorUsername: string | null
+  tags: string[]
+  publishedAt: string | null
+  createdAt: string
+}
+
+// === Articles (permanent, featured) ===
+
 export interface Article {
   id: string
   url: string
-  author: string | null
-  authorUsername: string | null
   title: string | null
   content: string | null
   summary: string | null
   translatedContent: string | null
   translatedSummary: string | null
   originalLanguage: string | null
-  coverImage: string | null
-  publishedAt: string | null
-  status: 'pending' | 'pending_translation' | 'crawling' | 'translating' | 'summarizing' | 'completed' | 'failed'
-  error: string | null
+  author: string | null
+  authorUsername: string | null
   tags: string[]
-  isFavorited: boolean
+  coverImage: string | null
+  sourceUrl: string | null
+  fullContent: string | null
+  status: 'pending_crawl' | 'pending_translation' | 'completed' | 'failed'
+  error: string | null
+  publishedAt: string | null
   createdAt: string
   updatedAt: string
 }
@@ -31,7 +49,9 @@ export interface CreateArticleInput {
   translatedContent?: string | null
   translatedSummary?: string | null
   originalLanguage?: string | null
-  tags?: string[] // 新增标签字段
+  sourceUrl?: string | null
+  fullContent?: string | null
+  tags?: string[]
   status?: Article['status']
   error?: string | null
 }
@@ -47,7 +67,9 @@ export interface UpdateArticleInput {
   originalLanguage?: string | null
   coverImage?: string | null
   publishedAt?: string | null
-  tags?: string[] // 新增标签字段
+  sourceUrl?: string | null
+  fullContent?: string | null
+  tags?: string[]
   status?: Article['status']
   error?: string | null
 }
