@@ -12,7 +12,8 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: 'jwt',
   },
-  useSecureCookies: process.env.NEXTAUTH_URL?.startsWith('https'),
+  // 反向代理终止 SSL，容器内部是 HTTP，所以 cookie 不需要 Secure 标记
+  useSecureCookies: false,
   callbacks: {
     async signIn({ user, account }) {
       if (account?.provider === 'github') {
