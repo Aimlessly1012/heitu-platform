@@ -28,7 +28,7 @@ export async function middleware(req: NextRequest) {
 
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
 
-  // 未登录 → 登录页
+  // not logged in -> redirect to login
   if (!token) {
     const loginUrl = new URL('/login', req.url)
     loginUrl.searchParams.set('callbackUrl', pathname)
@@ -43,7 +43,7 @@ export async function middleware(req: NextRequest) {
   // 非管理员：用 token 中的 status 做判断
   const status = token.status as string
 
-  // 黑名单用户 → 只能看黑名单提示页
+  // blacklisted user -> only allow blacklisted page
   if (status === 'blacklisted') {
     if (!pathname.startsWith('/blacklisted')) {
       return NextResponse.redirect(new URL('/blacklisted', req.url))
