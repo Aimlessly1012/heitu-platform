@@ -13,6 +13,22 @@ COPY packages/heitu/package.json ./packages/heitu/
 # 安装依赖（包括编译 better-sqlite3 原生模块）
 RUN pnpm install --frozen-lockfile || pnpm install
 
+# 将 pnpm 符号链接解析为实际文件，供后续阶段 COPY
+RUN mkdir -p /tmp/native-modules && \
+    cp -rL /app/node_modules/.pnpm/better-sqlite3*/node_modules/better-sqlite3 /tmp/native-modules/better-sqlite3 || \
+    cp -rL /app/apps/x-blog/node_modules/better-sqlite3 /tmp/native-modules/better-sqlite3 || \
+    cp -rL /app/node_modules/better-sqlite3 /tmp/native-modules/better-sqlite3 && \
+    cp -rL /app/node_modules/.pnpm/bindings*/node_modules/bindings /tmp/native-modules/bindings 2>/dev/null || \
+    cp -rL /app/node_modules/bindings /tmp/native-modules/bindings 2>/dev/null || true && \
+    cp -rL /app/node_modules/.pnpm/file-uri-to-path*/node_modules/file-uri-to-path /tmp/native-modules/file-uri-to-path 2>/dev/null || \
+    cp -rL /app/node_modules/file-uri-to-path /tmp/native-modules/file-uri-to-path 2>/dev/null || true
+
+# 阶段 1.5: 独立编译 better-sqlite3（备用，确保原生模块可用）
+FROM node:22-alpine AS native-builder
+RUN apk add --no-cache python3 make g++
+WORKDIR /native
+RUN npm init -y && npm install better-sqlite3
+
 # 阶段 2: 构建组件库
 FROM node:22-alpine AS heitu-builder
 WORKDIR /app
@@ -56,12 +72,11 @@ COPY --from=builder /app/apps/x-blog/public ./apps/x-blog/public
 COPY --from=builder /app/apps/x-blog/.next/standalone ./
 COPY --from=builder /app/apps/x-blog/.next/static ./apps/x-blog/.next/static
 
-# 复制 better-sqlite3 原生模块（standalone 不会自动包含 .node 绑定文件）
-COPY --from=deps /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
-COPY --from=deps /app/node_modules/bindings ./node_modules/bindings
-COPY --from=deps /app/node_modules/file-uri-to-path ./node_modules/file-uri-to-path
-COPY --from=deps /app/node_modules/prebuild-install ./node_modules/prebuild-install
-COPY --from=deps /app/node_modules/node-addon-api ./node_modules/node-addon-api
+# 复制 better-sqlite3 原生模块（使用独立编译的版本，避免 pnpm 符号链接问题）
+COPY --from=native-builder /native/node_modules/better-sqlite3 ./node_modules/better-sqlite3
+COPY --from=native-builder /native/node_modules/bindings ./node_modules/bindings
+COPY --from=native-builder /native/node_modules/file-uri-to-path ./node_modules/file-uri-to-path
+COPY --from=native-builder /native/node_modules/node-addon-api ./node_modules/node-addon-api
 
 RUN mkdir -p /app/apps/x-blog/data && \
     mkdir -p /app/apps/x-blog/.next/cache && \
