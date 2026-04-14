@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createArticle, getAllArticles, getArticleByUrl } from '@/lib/db'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const articles = getAllArticles()
+    const { searchParams } = new URL(request.url)
+    const all = searchParams.get('all') === 'true'
+    let articles = getAllArticles()
+    // By default only return favorited articles for the featured page
+    if (!all) {
+      articles = articles.filter(a => a.isFavorited)
+    }
     return NextResponse.json({ data: articles })
   } catch (error) {
     console.error('Error fetching articles:', error)

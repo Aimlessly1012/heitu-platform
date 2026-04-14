@@ -218,11 +218,11 @@ function EmptyState() {
       >
         <BookOpenIcon className="w-8 h-8" style={{ color: 'var(--t3)' }} />
       </div>
-      <h3 className="text-lg font-bold mb-2" style={{ color: 'var(--t1)' }}>暂无文章</h3>
+      <h3 className="text-lg font-bold mb-2" style={{ color: 'var(--t1)' }}>暂无精选文章</h3>
       <p className="text-sm" style={{ color: 'var(--t2)' }}>
-        还没有任何文章内容，去看看{' '}
-        <a href="/" className="underline" style={{ color: 'var(--ac)' }}>晨报</a>{' '}
-        有什么新内容吧
+        在{' '}
+        <a href="/" className="underline" style={{ color: 'var(--ac)' }}>每日晨报</a>{' '}
+        中点击收藏按钮，文章将出现在这里
       </p>
     </div>
   )
@@ -306,7 +306,7 @@ export default function ArticlesPage() {
         }}
       >
         <div className="max-w-full mx-auto px-6 py-4">
-          <h1 className="text-lg font-bold mb-4" style={{ color: 'var(--t1)' }}>X精选文章</h1>
+          <h1 className="text-lg font-bold mb-4" style={{ color: 'var(--t1)' }}>精选文章</h1>
 
           {/* Search + Filter */}
           <div className="flex flex-col sm:flex-row gap-3">
