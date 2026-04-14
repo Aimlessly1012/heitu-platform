@@ -11,9 +11,10 @@ export interface Article {
   originalLanguage: string | null
   coverImage: string | null
   publishedAt: string | null
-  status: 'pending' | 'crawling' | 'translating' | 'summarizing' | 'completed' | 'failed'
+  status: 'pending' | 'pending_translation' | 'crawling' | 'translating' | 'summarizing' | 'completed' | 'failed'
   error: string | null
-  tags: string[] // 新增标签字段
+  tags: string[]
+  isFavorited: boolean
   createdAt: string
   updatedAt: string
 }

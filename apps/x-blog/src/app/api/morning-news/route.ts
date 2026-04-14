@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getDb } from '@/lib/db'
+import { getDb, deleteMorningNewsBeforeDate } from '@/lib/db'
 import { randomId } from '@/lib/utils'
 
 export async function POST(request: NextRequest) {
@@ -12,6 +12,13 @@ export async function POST(request: NextRequest) {
     }
 
     const db = getDb()
+
+    // clean up old unfavorited morning news before today
+    const deleted = deleteMorningNewsBeforeDate(date)
+    if (deleted > 0) {
+      console.log(`[morning-news] cleaned ${deleted} old articles before ${date}`)
+    }
+
     const results = []
 
     for (const item of items) {
@@ -76,7 +83,6 @@ export async function GET(request: NextRequest) {
       LIMIT ?
     `).all(limit) as any[]
 
-    // Parse tags JSON and convert snake_case to camelCase
     const parsed = articles.map(a => ({
       id: a.id,
       url: a.url,
@@ -93,6 +99,7 @@ export async function GET(request: NextRequest) {
       status: a.status,
       error: a.error,
       tags: a.tags ? JSON.parse(a.tags) : [],
+      isFavorited: a.is_favorited === 1,
       createdAt: a.created_at,
       updatedAt: a.updated_at
     }))

@@ -38,11 +38,26 @@ function initDb(database: Database.Database) {
       published_at TEXT,
       status TEXT DEFAULT 'pending',
       error TEXT,
+      is_favorited INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     )
   `)
-  
+
+  // 迁移：为旧表添加 is_favorited 字段
+  try {
+    database.exec(`ALTER TABLE articles ADD COLUMN is_favorited INTEGER DEFAULT 0`)
+  } catch {
+    // 字段已存在，忽略
+  }
+
+  // 迁移：为旧表添加 tags 字段
+  try {
+    database.exec(`ALTER TABLE articles ADD COLUMN tags TEXT`)
+  } catch {
+    // 字段已存在，忽略
+  }
+
   database.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
@@ -72,10 +87,10 @@ export function createArticle(input: CreateArticleInput): Article {
   const now = new Date().toISOString()
   
   const stmt = database.prepare(`
-    INSERT INTO articles (id, url, author, author_username, title, content, summary, translated_content, translated_summary, original_language, cover_image, published_at, tags, status, error, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO articles (id, url, author, author_username, title, content, summary, translated_content, translated_summary, original_language, cover_image, published_at, tags, is_favorited, status, error, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
-  
+
   stmt.run(
     id,
     input.url || null,
@@ -90,6 +105,7 @@ export function createArticle(input: CreateArticleInput): Article {
     input.coverImage || null,
     input.publishedAt || null,
     JSON.stringify(input.tags || []),
+    0,
     input.status || 'pending',
     input.error || null,
     now,
@@ -225,9 +241,54 @@ function mapRowToArticle(row: Record<string, unknown>): Article {
     tags: JSON.parse((row.tags as string) || '[]'),
     status: row.status as Article['status'],
     error: row.error as string | null,
+    isFavorited: row.is_favorited === 1,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   }
+}
+
+// ==================== ARTICLE FAVORITES ====================
+
+export function toggleFavorite(id: string): boolean {
+  const database = getDb()
+  const article = database.prepare('SELECT is_favorited, tags FROM articles WHERE id = ?').get(id) as { is_favorited: number, tags: string } | undefined
+  if (!article) return false
+
+  const newFav = article.is_favorited === 1 ? 0 : 1
+  const now = new Date().toISOString()
+
+  // 收藏时添加 'X精选' 标签，取消收藏时移除
+  let tags: string[] = []
+  try { tags = JSON.parse(article.tags || '[]') } catch { tags = [] }
+
+  if (newFav === 1) {
+    if (!tags.includes('X精选')) tags.push('X精选')
+    // 未翻译的标记为待翻译
+    database.prepare(`
+      UPDATE articles SET is_favorited = 1, tags = ?, status = CASE WHEN translated_content IS NULL OR translated_content = '' THEN 'pending_translation' ELSE status END, updated_at = ? WHERE id = ?
+    `).run(JSON.stringify(tags), now, id)
+  } else {
+    tags = tags.filter(t => t !== 'X精选')
+    database.prepare(`UPDATE articles SET is_favorited = 0, tags = ?, updated_at = ? WHERE id = ?`).run(JSON.stringify(tags), now, id)
+  }
+
+  return newFav === 1
+}
+
+export function deleteMorningNewsBeforeDate(date: string): number {
+  const database = getDb()
+  const result = database.prepare(`
+    DELETE FROM articles WHERE id LIKE 'morning_%' AND is_favorited = 0 AND created_at < ?
+  `).run(date)
+  return result.changes
+}
+
+export function getPendingTranslationArticles(): Article[] {
+  const database = getDb()
+  const rows = database.prepare(`
+    SELECT * FROM articles WHERE status = 'pending_translation' AND is_favorited = 1 ORDER BY created_at DESC
+  `).all() as Record<string, unknown>[]
+  return rows.map(mapRowToArticle)
 }
 
 // ==================== USER MANAGEMENT ====================

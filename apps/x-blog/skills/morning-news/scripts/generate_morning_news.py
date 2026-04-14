@@ -16,7 +16,7 @@ from datetime import datetime, timezone, timedelta
 
 # ============ 配置 ============
 
-BLOG_API = os.environ.get("BLOG_API", "http://localhost:3001")
+BLOG_API = os.environ.get("BLOG_API", "https://heitu.wang")
 TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY", "")
 
 # 搜索关键词组
@@ -35,6 +35,9 @@ SEARCH_QUERIES = [
     # 教程
     "Harness Engineering AI agent tutorial",
     "Claude Code best practices guide",
+    # Hermes / OpenClaw
+    "Hermes AI agent OpenClaw update",
+    "OpenClaw platform AI agent news",
 ]
 
 SEARCH_QUERIES_ZH = [
@@ -251,7 +254,7 @@ def auto_score(item):
     title = (item.get("title", "") + " " + item.get("snippet", "")).lower()
     
     # 高价值关键词
-    high_keywords = ['claude', 'anthropic', 'claude code', 'mcp', 'skill', 'openclaw']
+    high_keywords = ['claude', 'anthropic', 'claude code', 'mcp', 'skill', 'openclaw', 'hermes', 'opencode']
     mid_keywords = ['openai', 'gpt', 'gemini', 'ai agent', 'harness', 'prompt engineering']
     topic_keywords = ['ai engineer', 'ai startup', 'ai hiring', 'ai job', 'funding', '融资', '创业', '就业']
     

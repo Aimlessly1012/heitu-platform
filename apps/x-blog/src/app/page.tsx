@@ -1,11 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
+import { useSession } from 'next-auth/react'
 import Navbar from '@/components/Navbar'
 import { Article } from '@/lib/types'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
-import { ArrowRightIcon, BookOpenIcon } from '@heroicons/react/24/outline'
+import { ArrowRightIcon, BookOpenIcon, BookmarkIcon } from '@heroicons/react/24/outline'
+import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid'
 
 const TAG_CLASSES: Record<string, string> = {
   'Claude': 'tag-claude',
@@ -22,23 +24,56 @@ function getTagStyle(tag: string) {
   return TAG_CLASSES[tag] || 'tag-default'
 }
 
-function NewsCard({ item, isFirst = false }: { item: Article; isFirst?: boolean }) {
+function NewsCard({ item, isFirst = false, isAdmin = false, onFavorite }: { item: Article; isFirst?: boolean; isAdmin?: boolean; onFavorite?: (id: string) => void }) {
   const tags = item.tags || []
+  const [favLoading, setFavLoading] = useState(false)
+  const [fav, setFav] = useState(item.isFavorited)
+
+  const handleFavorite = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (favLoading) return
+    setFavLoading(true)
+    try {
+      const res = await fetch(`/api/articles/${item.id}/favorite`, { method: 'POST' })
+      if (res.ok) {
+        const data = await res.json()
+        setFav(data.isFavorited)
+        onFavorite?.(item.id)
+      }
+    } catch {} finally { setFavLoading(false) }
+  }
 
   return (
     <article
       className={`group ${isFirst ? 'pb-14 mb-12' : 'py-10'}`}
       style={{ borderBottom: '1px solid var(--bd)' }}
     >
-      {/* Date */}
-      <div className="flex items-center gap-2 mb-3">
-        <span className="text-sm" style={{ color: 'var(--t3)' }}>
-          {item.publishedAt ? format(new Date(item.publishedAt), 'MM月dd日', { locale: zhCN }) : ''}
-        </span>
-        <span style={{ color: 'var(--bd-h)' }}>·</span>
-        <span className="text-sm" style={{ color: 'var(--t3)' }}>
-          {item.publishedAt ? format(new Date(item.publishedAt), 'HH:mm') : ''}
-        </span>
+      {/* Date + Favorite */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <span className="text-sm" style={{ color: 'var(--t3)' }}>
+            {item.publishedAt ? format(new Date(item.publishedAt), 'MM月dd日', { locale: zhCN }) : ''}
+          </span>
+          <span style={{ color: 'var(--bd-h)' }}>.</span>
+          <span className="text-sm" style={{ color: 'var(--t3)' }}>
+            {item.publishedAt ? format(new Date(item.publishedAt), 'HH:mm') : ''}
+          </span>
+        </div>
+        {isAdmin && (
+          <button
+            onClick={handleFavorite}
+            disabled={favLoading}
+            className="p-1.5 rounded-lg transition-all duration-200 opacity-0 group-hover:opacity-100"
+            style={{
+              color: fav ? '#f59e0b' : 'var(--t3)',
+              opacity: fav ? 1 : undefined,
+            }}
+            title={fav ? 'cancel favorite' : 'add to featured'}
+          >
+            {fav ? <BookmarkSolidIcon className="w-5 h-5" /> : <BookmarkIcon className="w-5 h-5" />}
+          </button>
+        )}
       </div>
 
       {/* Title */}
@@ -161,6 +196,8 @@ function EmptyState() {
 }
 
 export default function HomePage() {
+  const { data: session } = useSession()
+  const isAdmin = (session?.user as any)?.isAdmin === true
   const [articles, setArticles] = useState<Article[]>([])
   const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
@@ -230,7 +267,7 @@ export default function HomePage() {
         ) : (
           <div>
             {articles.map((article, index) => (
-              <NewsCard key={article.id} item={article} isFirst={index === 0} />
+              <NewsCard key={article.id} item={article} isFirst={index === 0} isAdmin={isAdmin} />
             ))}
           </div>
         )}
