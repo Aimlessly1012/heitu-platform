@@ -12,7 +12,7 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: 'jwt',
   },
-  useSecureCookies: false,
+  useSecureCookies: process.env.NEXTAUTH_URL?.startsWith('https'),
   callbacks: {
     async signIn({ user, account }) {
       if (account?.provider === 'github') {
