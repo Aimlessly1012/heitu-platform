@@ -62,19 +62,12 @@ export const authOptions: NextAuthOptions = {
       return token
     },
     async session({ session, token }) {
-      if (session.user && token.sub) {
-        const db = getDb()
-        const dbUser = db.prepare('SELECT * FROM users WHERE github_id = ?').get(token.sub) as any
-        if (dbUser) {
-          const user = session.user as any
-          user.id = dbUser.id
-          user.name = dbUser.name
-          user.email = dbUser.email
-          user.image = dbUser.image
-          user.status = dbUser.status
-          user.isAdmin = dbUser.is_admin === 1
-          user.githubId = token.sub
-        }
+      if (session.user) {
+        const user = session.user as any
+        user.id = token.userId
+        user.status = token.status
+        user.isAdmin = token.isAdmin === true
+        user.githubId = token.sub
       }
       return session
     },
