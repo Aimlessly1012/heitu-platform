@@ -9,7 +9,6 @@ import {
   ClockIcon, TrashIcon, BookOpenIcon, ArrowRightIcon,
   MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline'
-import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid'
 
 // Dark-compatible tag colors
 const TAG_COLORS: Record<string, string> = {
@@ -43,21 +42,20 @@ function getTagClass(tag: string) {
 }
 
 const STATUS_LABELS: Record<Article['status'], string> = {
-  pending: '等待中', pending_translation: '待翻译', crawling: '爬取中', translating: '翻译中',
-  summarizing: '总结中', completed: '已完成', failed: '失败',
+  pending_crawl: '等待中',
+  pending_translation: '翻译中',
+  completed: '已完成',
+  failed: '失败',
 }
 
 const STATUS_COLORS: Record<Article['status'], string> = {
-  pending:    'bg-white/5 text-slate-400',
+  pending_crawl: 'bg-white/5 text-slate-400',
   pending_translation: 'bg-amber-500/10 text-amber-400',
-  crawling:   'bg-blue-500/10 text-blue-400',
-  translating: 'bg-yellow-500/10 text-yellow-400',
-  summarizing: 'bg-purple-500/10 text-purple-400',
-  completed:  'bg-emerald-500/10 text-emerald-400',
-  failed:     'bg-red-500/10 text-red-400',
+  completed: 'bg-emerald-500/10 text-emerald-400',
+  failed: 'bg-red-500/10 text-red-400',
 }
 
-type FilterType = 'all' | 'completed' | 'processing'
+type FilterType = 'all' | 'completed' | 'pending'
 
 function Skeleton() {
   return (
@@ -83,7 +81,6 @@ function ArticleCard({
   onDelete: (id: string) => void
   isDeleting: boolean
 }) {
-  const [bookmarked, setBookmarked] = useState(false)
   const tags = article.tags || []
 
   return (
@@ -114,19 +111,6 @@ function ArticleCard({
             </span>
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
-            <button
-              onClick={() => setBookmarked(b => !b)}
-              className="p-2 rounded-lg transition-colors"
-              style={{ color: bookmarked ? 'var(--ac)' : 'var(--t3)' }}
-              onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = 'var(--bg-card-h)')}
-              onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = 'transparent')}
-            >
-              {bookmarked ? (
-                <BookmarkSolidIcon className="w-4 h-4" />
-              ) : (
-                <BookOpenIcon className="w-4 h-4" />
-              )}
-            </button>
             <button
               onClick={() => onDelete(article.id)}
               disabled={isDeleting}
@@ -267,8 +251,7 @@ export default function ArticlesPage() {
 
   const filteredArticles = articles.filter(article => {
     if (filter === 'completed' && article.status !== 'completed') return false
-    if (filter === 'processing' && ['pending', 'crawling', 'translating', 'summarizing'].includes(article.status))
-      return false
+    if (filter === 'pending' && article.status === 'completed') return false
     if (searchQuery) {
       const q = searchQuery.toLowerCase()
       if (
@@ -331,7 +314,7 @@ export default function ArticlesPage() {
               />
             </div>
             <div className="flex gap-1.5">
-              {(['all', 'completed', 'processing'] as FilterType[]).map(f => (
+              {(['all', 'completed', 'pending'] as FilterType[]).map(f => (
                 <button
                   key={f}
                   onClick={() => setFilter(f)}
