@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import Navbar from '@/components/Navbar'
-import { Article } from '@/lib/types'
+import { MorningNewsItem } from '@/lib/types'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 import { ArrowRightIcon, BookOpenIcon, BookmarkIcon } from '@heroicons/react/24/outline'
@@ -24,22 +24,26 @@ function getTagStyle(tag: string) {
   return TAG_CLASSES[tag] || 'tag-default'
 }
 
-function NewsCard({ item, isFirst = false, isAdmin = false, onFavorite }: { item: Article; isFirst?: boolean; isAdmin?: boolean; onFavorite?: (id: string) => void }) {
+function NewsCard({ item, isFirst = false, isAdmin = false }: { item: MorningNewsItem; isFirst?: boolean; isAdmin?: boolean }) {
   const tags = item.tags || []
   const [favLoading, setFavLoading] = useState(false)
-  const [fav, setFav] = useState(item.isFavorited)
+  const [fav, setFav] = useState(false)
 
   const handleFavorite = async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    if (favLoading) return
+    if (favLoading || fav) return
     setFavLoading(true)
     try {
-      const res = await fetch(`/api/articles/${item.id}/favorite`, { method: 'POST' })
+      const res = await fetch('/api/articles/favorite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ morningNewsId: item.id }),
+      })
       if (res.ok) {
-        const data = await res.json()
-        setFav(data.isFavorited)
-        onFavorite?.(item.id)
+        setFav(true)
+      } else if (res.status === 409) {
+        setFav(true) // already favorited
       }
     } catch {} finally { setFavLoading(false) }
   }
@@ -198,7 +202,7 @@ function EmptyState() {
 export default function HomePage() {
   const { data: session } = useSession()
   const isAdmin = (session?.user as any)?.isAdmin === true
-  const [articles, setArticles] = useState<Article[]>([])
+  const [articles, setArticles] = useState<MorningNewsItem[]>([])
   const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
 
