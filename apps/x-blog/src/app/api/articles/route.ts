@@ -1,22 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createArticle, getAllArticles, getArticleByUrl } from '@/lib/db'
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const { searchParams } = new URL(request.url)
-    const all = searchParams.get('all') === 'true'
-    let articles = getAllArticles()
-    // By default only return favorited articles for the featured page
-    if (!all) {
-      articles = articles.filter(a => a.isFavorited)
-    }
+    const articles = getAllArticles()
     return NextResponse.json({ data: articles })
   } catch (error) {
     console.error('Error fetching articles:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch articles' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to fetch articles' }, { status: 500 })
   }
 }
 
@@ -24,7 +15,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { url, title, author, authorUsername, publishedAt, content, summary, coverImage, translatedContent, translatedSummary, originalLanguage, status, tags } = body
-    
+
     // If URL provided, check for duplicates
     if (url) {
       const existing = getArticleByUrl(url)
@@ -35,9 +26,8 @@ export async function POST(request: NextRequest) {
         )
       }
     }
-    
+
     // Create article with full data
-    // Accept status from request, or default to 'pending_translation' if content exists but no translation
     const article = createArticle({
       url: url || null,
       title: title || null,
@@ -50,10 +40,10 @@ export async function POST(request: NextRequest) {
       translatedContent: translatedContent || null,
       translatedSummary: translatedSummary || null,
       originalLanguage: originalLanguage || 'en',
-      status: status || (content ? (translatedContent ? 'completed' : 'pending_translation') : 'pending'),
+      status: status || (content ? (translatedContent ? 'completed' : 'pending_translation') : 'pending_crawl'),
       tags: tags || null,
     })
-    
+
     return NextResponse.json(
       { data: article },
       { status: 201 }
