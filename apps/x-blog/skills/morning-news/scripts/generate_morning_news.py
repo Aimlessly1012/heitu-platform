@@ -323,6 +323,85 @@ def auto_tags(item):
     return list(set(tags))
 
 
+# ============ content enrichment ============
+
+def fetch_x_tweet_full(url):
+    """Use fxtwitter (free, no auth) to get full tweet text + thread context.
+
+    Converts x.com/user/status/123 → api.fxtwitter.com/user/status/123 (JSON).
+    Returns full tweet text or None.
+    """
+    m = re.search(r'(?:x\.com|twitter\.com)/([^/]+)/status/(\d+)', url)
+    if not m:
+        return None
+    username, tweet_id = m.group(1), m.group(2)
+    api_url = f"https://api.fxtwitter.com/{username}/status/{tweet_id}"
+    try:
+        req = urllib.request.Request(api_url, headers={"User-Agent": "MorningNewsBot/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+        tweet = data.get("tweet", {})
+        text = tweet.get("text", "") or ""
+        if not isinstance(text, str):
+            text = ""
+
+        # X long-form post: real content lives in article.content.blocks[*].text
+        article = tweet.get("article")
+        if isinstance(article, dict):
+            atitle = article.get("title", "") or ""
+            paragraphs = []
+            content = article.get("content")
+            if isinstance(content, dict):
+                blocks = content.get("blocks", [])
+                if isinstance(blocks, list):
+                    for b in blocks:
+                        if isinstance(b, dict):
+                            t = b.get("text", "")
+                            if isinstance(t, str) and t.strip():
+                                paragraphs.append(t.strip())
+            article_text = "\n\n".join(paragraphs)
+            if not article_text:
+                preview = article.get("preview_text", "")
+                if isinstance(preview, str):
+                    article_text = preview
+            if article_text:
+                text = (atitle + "\n\n" + article_text).strip() if atitle else article_text
+
+        # If it's a thread / reply, prepend parent context
+        replying_to = tweet.get("replying_to")
+        replying_to_status = tweet.get("replying_to_status")
+        if isinstance(replying_to_status, dict):
+            parent_text = replying_to_status.get("text", "") or ""
+            parent_user = replying_to if isinstance(replying_to, str) else ""
+            if not parent_user and isinstance(replying_to_status.get("author"), dict):
+                parent_user = replying_to_status["author"].get("screen_name", "")
+            if parent_text:
+                text = f"[Replying to @{parent_user}: {parent_text}]\n\n{text}"
+
+        return text.strip() or None
+    except Exception as e:
+        print(f"  [fxtwitter] {username}/{tweet_id}: {e}")
+        return None
+
+
+def enrich_content(items):
+    """Replace Tavily snippets with full tweet text for X items.
+
+    fxtwitter returns clean original tweet text; we always prefer it over
+    Tavily's snippet (which often contains UI metadata like view counts).
+    """
+    enriched = 0
+    for item in items:
+        url = item.get("url", "")
+        if "x.com/" in url or "twitter.com/" in url:
+            full_text = fetch_x_tweet_full(url)
+            if full_text and len(full_text) >= 30:  # any non-trivial text
+                item["content"] = full_text
+                enriched += 1
+    print(f"  Enriched {enriched}/{sum(1 for i in items if 'x.com/' in i.get('url','') or 'twitter.com/' in i.get('url',''))} X tweets")
+    return items
+
+
 # ============ translation ============
 
 def _call_hermes_translate(items_to_translate, batch_label=""):
@@ -330,20 +409,25 @@ def _call_hermes_translate(items_to_translate, batch_label=""):
     entries = []
     for idx, item in enumerate(items_to_translate):
         title = item.get("title", "")
-        content = item.get("content", "")[:300]
+        content = item.get("content", "")[:1500]
         entries.append(f'{idx+1}. Title: {title}\n   Content: {content}')
 
     entries_text = "\n".join(entries)
-    prompt = f"""You are a professional translator. Translate the following {len(items_to_translate)} news items into Chinese.
+    prompt = f"""你是一个专业的 AI 技术资讯编辑，擅长把英文推文/文章翻译并归纳成高质量中文摘要。
 
-For each item, provide:
-- translated_title: A concise Chinese title (keep @username as-is)
-- translated_summary: A 1-2 sentence Chinese summary of the content
+请为下面 {len(items_to_translate)} 条资讯，各生成：
+- translated_title: 简洁精准的中文标题（不超过 30 字，保留 @用户名 原样）
+- translated_summary: 3-5 句中文深度归纳（共 80-200 字）。要求：
+  * 第一句话点明核心观点或新信息是什么
+  * 后续 2-4 句补充关键细节、数据、使用方式、或对开发者/用户的影响和价值
+  * 不要只做字面翻译——提炼"是什么、为什么重要、有什么用"
+  * 如果原内容本身很短，可以基于标题和已知上下文适度延展
+  * 禁止使用"本文介绍"、"该推文说"等元描述，直接陈述事实
 
-Return ONLY a valid JSON array, no other text:
+只返回合法 JSON 数组，不要任何其他文字、不要代码块包裹：
 [{{"translated_title": "...", "translated_summary": "..."}}, ...]
 
-Items:
+资讯：
 {entries_text}"""
 
     try:
@@ -534,6 +618,10 @@ def main():
     selected.sort(key=lambda x: x["score"], reverse=True)
     selected = selected[:25]
     print(f"  Selected: {len(selected)}")
+
+    # Enrich content (fetch full X tweet text via fxtwitter)
+    print(f"\n== Enrich Content ==")
+    selected = enrich_content(selected)
 
     # Translate & summarize
     print(f"\n== Translate & Summarize ==")
