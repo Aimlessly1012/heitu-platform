@@ -25,6 +25,8 @@ export async function POST(request: NextRequest) {
           title: item.title,
           content: item.content,
           summary: item.summary,
+          translatedTitle: item.translatedTitle,
+          translatedSummary: item.translatedSummary,
           author: item.author,
           authorUsername: item.authorUsername,
           tags: item.tags,

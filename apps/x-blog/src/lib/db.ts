@@ -30,6 +30,8 @@ function initDb(database: Database.Database) {
       title TEXT,
       content TEXT,
       summary TEXT,
+      translated_title TEXT,
+      translated_summary TEXT,
       author TEXT,
       author_username TEXT,
       tags TEXT,
@@ -63,12 +65,14 @@ function initDb(database: Database.Database) {
     )
   `)
 
-  // Migration: add new columns to existing articles table if missing
+  // Migration: add new columns to existing tables if missing
   const addCol = (table: string, col: string, type: string) => {
     try { database.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`) } catch {}
   }
   addCol('articles', 'source_url', 'TEXT')
   addCol('articles', 'full_content', 'TEXT')
+  addCol('morning_news', 'translated_title', 'TEXT')
+  addCol('morning_news', 'translated_summary', 'TEXT')
 
   // Users table (unchanged)
   database.exec(`
@@ -103,16 +107,18 @@ export function clearMorningNews(): number {
 
 export function insertMorningNews(item: {
   id: string, url: string, title?: string | null, content?: string | null,
-  summary?: string | null, author?: string | null, authorUsername?: string | null,
+  summary?: string | null, translatedTitle?: string | null, translatedSummary?: string | null,
+  author?: string | null, authorUsername?: string | null,
   tags?: string[], publishedAt?: string | null
 }): void {
   const database = getDb()
   database.prepare(`
-    INSERT INTO morning_news (id, url, title, content, summary, author, author_username, tags, published_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO morning_news (id, url, title, content, summary, translated_title, translated_summary, author, author_username, tags, published_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     item.id, item.url, item.title || null, item.content || null,
-    item.summary || null, item.author || null, item.authorUsername || null,
+    item.summary || null, item.translatedTitle || null, item.translatedSummary || null,
+    item.author || null, item.authorUsername || null,
     JSON.stringify(item.tags || []), item.publishedAt || null
   )
 }
@@ -138,6 +144,8 @@ function mapRowToMorningNews(row: Record<string, unknown>): MorningNewsItem {
     title: row.title as string | null,
     content: row.content as string | null,
     summary: row.summary as string | null,
+    translatedTitle: row.translated_title as string | null,
+    translatedSummary: row.translated_summary as string | null,
     author: row.author as string | null,
     authorUsername: row.author_username as string | null,
     tags: JSON.parse((row.tags as string) || '[]'),

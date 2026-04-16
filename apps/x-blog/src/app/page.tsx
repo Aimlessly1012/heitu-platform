@@ -80,13 +80,13 @@ function NewsCard({ item, isFirst = false, isAdmin = false }: { item: MorningNew
         )}
       </div>
 
-      {/* Title */}
+      {/* Title — prefer translated */}
       <h2
         className={`font-bold mb-4 transition-colors duration-200 ${isFirst ? 'text-3xl md:text-4xl' : 'text-2xl md:text-3xl'}`}
         style={{ color: 'var(--t1)' }}
       >
         <span className="group-hover:text-[var(--ac)] transition-colors duration-200">
-          {item.title || '无标题'}
+          {item.translatedTitle || item.title || '无标题'}
         </span>
       </h2>
 
@@ -121,14 +121,14 @@ function NewsCard({ item, isFirst = false, isAdmin = false }: { item: MorningNew
         </div>
       )}
 
-      {/* Summary */}
-      {item.summary && (
+      {/* Translated summary or original summary */}
+      {(item.translatedSummary || item.summary) && (
         <p className="text-base mb-5 leading-relaxed" style={{ color: 'var(--t2)' }}>
-          {item.summary}
+          {item.translatedSummary || item.summary}
         </p>
       )}
 
-      {/* Content preview */}
+      {/* Original content preview (shown smaller when translation exists) */}
       {item.content && (
         <p className="text-sm leading-relaxed mb-5" style={{ color: 'var(--t3)' }}>
           {item.content.substring(0, 280)}…

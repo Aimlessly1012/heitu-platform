@@ -6,6 +6,8 @@ export interface MorningNewsItem {
   title: string | null
   content: string | null
   summary: string | null
+  translatedTitle: string | null
+  translatedSummary: string | null
   author: string | null
   authorUsername: string | null
   tags: string[]

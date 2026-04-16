@@ -12,6 +12,7 @@ Usage: python3 generate_morning_news.py [--dry-run] [--date 2026-04-01]
 """
 
 import json
+import subprocess
 import sys
 import os
 import re
@@ -57,6 +58,8 @@ RSS_SOURCES = [
 # HackerNews
 HN_TOP_URL = "https://hacker-news.firebaseio.com/v0/topstories.json"
 HN_ITEM_URL = "https://hacker-news.firebaseio.com/v0/item/{}.json"
+
+HERMES_BIN = os.environ.get("HERMES_BIN", "/root/.local/bin/hermes")
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
@@ -286,6 +289,68 @@ def auto_tags(item):
     return list(set(tags))
 
 
+# ============ translation ============
+
+def translate_batch_with_hermes(items):
+    """Batch translate titles + summarize content via Hermes (MiniMax model).
+
+    Translates up to 5 items per Hermes call to save API calls.
+    """
+    if not os.path.exists(HERMES_BIN):
+        print(f"  [SKIP] Hermes not found at {HERMES_BIN}")
+        return items
+
+    batch_size = 5
+    for start in range(0, len(items), batch_size):
+        batch = items[start:start + batch_size]
+        entries = []
+        for idx, item in enumerate(batch):
+            title = item.get("title", "")
+            content = item.get("content", "")[:300]
+            entries.append(f'{idx+1}. Title: {title}\n   Content: {content}')
+
+        entries_text = "\n".join(entries)
+        prompt = f"""You are a professional translator. Translate the following {len(batch)} news items into Chinese.
+
+For each item, provide:
+- translated_title: A concise Chinese title (keep @username as-is)
+- translated_summary: A 1-2 sentence Chinese summary of the content
+
+Return ONLY a valid JSON array, no other text:
+[{{"translated_title": "...", "translated_summary": "..."}}, ...]
+
+Items:
+{entries_text}"""
+
+        try:
+            result = subprocess.run(
+                [HERMES_BIN, "chat", "-q", prompt],
+                capture_output=True, text=True, timeout=120,
+                env={**os.environ, "PATH": f"/root/.local/bin:/usr/local/bin:/usr/bin:/bin:{os.environ.get('PATH', '')}"},
+            )
+            output = result.stdout.strip()
+            # Extract JSON array from output
+            json_start = output.find("[")
+            json_end = output.rfind("]") + 1
+            if json_start >= 0 and json_end > json_start:
+                translations = json.loads(output[json_start:json_end])
+                for i, trans in enumerate(translations):
+                    if i < len(batch):
+                        batch[i]["translated_title"] = trans.get("translated_title", "")
+                        batch[i]["translated_summary"] = trans.get("translated_summary", "")
+                print(f"  Batch {start//batch_size + 1}: translated {len(translations)} items")
+            else:
+                print(f"  Batch {start//batch_size + 1}: [WARN] no valid JSON in response")
+        except subprocess.TimeoutExpired:
+            print(f"  Batch {start//batch_size + 1}: [WARN] Hermes timeout")
+        except Exception as e:
+            print(f"  Batch {start//batch_size + 1}: [ERROR] {e}")
+
+    translated_count = sum(1 for item in items if item.get("translated_title"))
+    print(f"  Total translated: {translated_count}/{len(items)}")
+    return items
+
+
 # ============ output ============
 
 def send_telegram(text):
@@ -390,6 +455,13 @@ def main():
     selected = selected[:25]
     print(f"  Selected: {len(selected)}")
 
+    # Translate & summarize
+    print(f"\n== Translate & Summarize ==")
+    if not dry_run:
+        selected = translate_batch_with_hermes(selected)
+    else:
+        print("  [DRY RUN] skipped translation")
+
     # Report
     report_lines = [f"AI Morning News - {date_str}\n"]
     for item in selected:
@@ -414,6 +486,8 @@ def main():
                 "url": item.get("url", ""),
                 "content": item.get("content", ""),
                 "summary": item.get("content", "")[:200],
+                "translatedTitle": item.get("translated_title", ""),
+                "translatedSummary": item.get("translated_summary", ""),
                 "author": item.get("author", item.get("source", "AI Morning News")),
                 "authorUsername": item.get("author", "morning-news"),
                 "originalLanguage": "zh" if any('\u4e00' <= c <= '\u9fff' for c in item.get("title", "")) else "en",
