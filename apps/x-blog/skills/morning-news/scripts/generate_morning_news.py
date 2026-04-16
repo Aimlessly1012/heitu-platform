@@ -22,6 +22,40 @@ from datetime import datetime, timezone, timedelta
 
 # ============ config ============
 
+def _load_env_file():
+    """Auto-load .env.local from project root if env vars aren't set.
+
+    Searches common paths so the script works under hermes cron (which
+    doesn't source the project's .env.local automatically).
+    """
+    candidates = [
+        "/root/peko/heitu-platform/apps/x-blog/.env.local",
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../../.env.local"),
+        os.path.join(os.getcwd(), ".env.local"),
+    ]
+    for path in candidates:
+        path = os.path.abspath(path)
+        if not os.path.exists(path):
+            continue
+        try:
+            with open(path) as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    key, val = line.split("=", 1)
+                    key = key.strip()
+                    val = val.strip().strip('"').strip("'")
+                    if key and key not in os.environ:
+                        os.environ[key] = val
+            print(f"  [env] loaded {path}")
+            break
+        except Exception as e:
+            print(f"  [env] failed to load {path}: {e}")
+
+
+_load_env_file()
+
 BLOG_API = os.environ.get("BLOG_API", "https://heitu.wang")
 TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY", "")
 
@@ -291,26 +325,16 @@ def auto_tags(item):
 
 # ============ translation ============
 
-def translate_batch_with_hermes(items):
-    """Batch translate titles + summarize content via Hermes (MiniMax model).
+def _call_hermes_translate(items_to_translate, batch_label=""):
+    """Call Hermes once for a list of items. Returns list of translations or None on failure."""
+    entries = []
+    for idx, item in enumerate(items_to_translate):
+        title = item.get("title", "")
+        content = item.get("content", "")[:300]
+        entries.append(f'{idx+1}. Title: {title}\n   Content: {content}')
 
-    Translates up to 5 items per Hermes call to save API calls.
-    """
-    if not os.path.exists(HERMES_BIN):
-        print(f"  [SKIP] Hermes not found at {HERMES_BIN}")
-        return items
-
-    batch_size = 5
-    for start in range(0, len(items), batch_size):
-        batch = items[start:start + batch_size]
-        entries = []
-        for idx, item in enumerate(batch):
-            title = item.get("title", "")
-            content = item.get("content", "")[:300]
-            entries.append(f'{idx+1}. Title: {title}\n   Content: {content}')
-
-        entries_text = "\n".join(entries)
-        prompt = f"""You are a professional translator. Translate the following {len(batch)} news items into Chinese.
+    entries_text = "\n".join(entries)
+    prompt = f"""You are a professional translator. Translate the following {len(items_to_translate)} news items into Chinese.
 
 For each item, provide:
 - translated_title: A concise Chinese title (keep @username as-is)
@@ -322,29 +346,85 @@ Return ONLY a valid JSON array, no other text:
 Items:
 {entries_text}"""
 
-        try:
-            result = subprocess.run(
-                [HERMES_BIN, "chat", "-q", prompt],
-                capture_output=True, text=True, timeout=120,
-                env={**os.environ, "PATH": f"/root/.local/bin:/usr/local/bin:/usr/bin:/bin:{os.environ.get('PATH', '')}"},
-            )
-            output = result.stdout.strip()
-            # Extract JSON array from output
+    try:
+        # -Q (uppercase) = quiet mode (suppresses banner), -q = query
+        result = subprocess.run(
+            [HERMES_BIN, "chat", "-Q", "-q", prompt],
+            capture_output=True, text=True, timeout=180,
+            env={**os.environ, "PATH": f"/root/.local/bin:/usr/local/bin:/usr/bin:/bin:{os.environ.get('PATH', '')}"},
+        )
+        output = result.stdout.strip()
+        # Strip ```json ... ``` code fences if present
+        fence_match = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', output, re.DOTALL)
+        if fence_match:
+            json_text = fence_match.group(1)
+        else:
+            # Fallback: find outermost [...]
             json_start = output.find("[")
             json_end = output.rfind("]") + 1
-            if json_start >= 0 and json_end > json_start:
-                translations = json.loads(output[json_start:json_end])
-                for i, trans in enumerate(translations):
-                    if i < len(batch):
-                        batch[i]["translated_title"] = trans.get("translated_title", "")
-                        batch[i]["translated_summary"] = trans.get("translated_summary", "")
-                print(f"  Batch {start//batch_size + 1}: translated {len(translations)} items")
+            json_text = output[json_start:json_end] if json_start >= 0 and json_end > json_start else ""
+
+        if json_text:
+            return json.loads(json_text)
+        return None
+    except subprocess.TimeoutExpired:
+        print(f"  {batch_label} [WARN] Hermes timeout")
+        return None
+    except Exception as e:
+        print(f"  {batch_label} [ERROR] {e}")
+        return None
+
+
+def translate_batch_with_hermes(items):
+    """Batch translate titles + summarize content via Hermes (MiniMax model).
+
+    Strategy:
+    1. Try batches of 5 with 1 retry on failure
+    2. For still-failed batches, fall back to per-item translation
+    """
+    if not os.path.exists(HERMES_BIN):
+        print(f"  [SKIP] Hermes not found at {HERMES_BIN}")
+        return items
+
+    batch_size = 5
+    failed_items = []
+
+    for start in range(0, len(items), batch_size):
+        batch = items[start:start + batch_size]
+        batch_num = start // batch_size + 1
+        label = f"Batch {batch_num}:"
+
+        # Try twice with the batch
+        translations = None
+        for attempt in range(2):
+            translations = _call_hermes_translate(batch, label)
+            if translations:
+                break
+            if attempt == 0:
+                print(f"  {label} [RETRY] attempt 2/2")
+
+        if translations:
+            for i, trans in enumerate(translations):
+                if i < len(batch):
+                    batch[i]["translated_title"] = trans.get("translated_title", "")
+                    batch[i]["translated_summary"] = trans.get("translated_summary", "")
+            print(f"  {label} translated {len(translations)} items")
+        else:
+            print(f"  {label} [FALLBACK] batch failed, queuing for per-item retry")
+            failed_items.extend(batch)
+
+    # Per-item fallback for items that failed in batch mode
+    if failed_items:
+        print(f"\n  Per-item fallback for {len(failed_items)} items:")
+        for idx, item in enumerate(failed_items):
+            label = f"Item {idx+1}/{len(failed_items)}:"
+            translations = _call_hermes_translate([item], label)
+            if translations and translations[0]:
+                item["translated_title"] = translations[0].get("translated_title", "")
+                item["translated_summary"] = translations[0].get("translated_summary", "")
+                print(f"  {label} OK")
             else:
-                print(f"  Batch {start//batch_size + 1}: [WARN] no valid JSON in response")
-        except subprocess.TimeoutExpired:
-            print(f"  Batch {start//batch_size + 1}: [WARN] Hermes timeout")
-        except Exception as e:
-            print(f"  Batch {start//batch_size + 1}: [ERROR] {e}")
+                print(f"  {label} gave up")
 
     translated_count = sum(1 for item in items if item.get("translated_title"))
     print(f"  Total translated: {translated_count}/{len(items)}")
