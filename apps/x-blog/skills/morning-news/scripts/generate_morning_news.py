@@ -16,6 +16,7 @@ import subprocess
 import sys
 import os
 import re
+import time
 import urllib.request
 import urllib.error
 from datetime import datetime, timezone, timedelta
@@ -405,7 +406,11 @@ def enrich_content(items):
 # ============ translation ============
 
 def _call_hermes_translate(items_to_translate, batch_label=""):
-    """Call Hermes once for a list of items. Returns list of translations or None on failure."""
+    """Call Hermes once for a list of items.
+
+    Returns: (translations_list_or_None, error_kind)
+      error_kind: None | 'rate_limit' | 'timeout' | 'parse_error' | 'other'
+    """
     entries = []
     for idx, item in enumerate(items_to_translate):
         title = item.get("title", "")
@@ -438,6 +443,17 @@ def _call_hermes_translate(items_to_translate, batch_label=""):
             env={**os.environ, "PATH": f"/root/.local/bin:/usr/local/bin:/usr/bin:/bin:{os.environ.get('PATH', '')}"},
         )
         output = result.stdout.strip()
+        combined = output + "\n" + (result.stderr or "")
+
+        # Detect rate-limit / quota errors surfaced by Hermes
+        rate_limit_markers = ("HTTP 429", "Token Plan", "请稍后重试",
+                              "rate limit", "rate_limit", "quota")
+        if any(m in combined for m in rate_limit_markers) or \
+           ("API call failed" in combined and "retries" in combined):
+            snippet = combined.strip().splitlines()[0][:200] if combined.strip() else ""
+            print(f"  {batch_label} [RATE LIMIT] {snippet}")
+            return None, "rate_limit"
+
         # Strip ```json ... ``` code fences if present
         fence_match = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', output, re.DOTALL)
         if fence_match:
@@ -449,43 +465,75 @@ def _call_hermes_translate(items_to_translate, batch_label=""):
             json_text = output[json_start:json_end] if json_start >= 0 and json_end > json_start else ""
 
         if json_text:
-            return json.loads(json_text)
-        return None
+            try:
+                return json.loads(json_text), None
+            except json.JSONDecodeError as e:
+                print(f"  {batch_label} [PARSE ERROR] {e}; head: {output[:120]!r}")
+                return None, "parse_error"
+        print(f"  {batch_label} [NO JSON] head: {output[:120]!r}")
+        return None, "parse_error"
     except subprocess.TimeoutExpired:
-        print(f"  {batch_label} [WARN] Hermes timeout")
-        return None
+        print(f"  {batch_label} [TIMEOUT]")
+        return None, "timeout"
     except Exception as e:
         print(f"  {batch_label} [ERROR] {e}")
-        return None
+        return None, "other"
 
 
 def translate_batch_with_hermes(items):
     """Batch translate titles + summarize content via Hermes (MiniMax model).
 
-    Strategy:
-    1. Try batches of 5 with 1 retry on failure
-    2. For still-failed batches, fall back to per-item translation
+    Throttling strategy (MiniMax Token Plan is sensitive to burst traffic):
+    1. Small batches (3 per call) to keep per-request token cost low
+    2. Baseline 4s sleep between batches (smooths out RPM)
+    3. On rate-limit (HTTP 429), exponential backoff: 60s → 180s → 300s
+    4. On timeout/parse error, short backoff: 10s → 20s
+    5. Per-item fallback for still-failed batches, with 6s pacing + 90s if 429
+    6. If a rate-limit is observed, bump the baseline inter-batch sleep to 10s
+       for the remainder of the run (cooling-off mode)
     """
     if not os.path.exists(HERMES_BIN):
         print(f"  [SKIP] Hermes not found at {HERMES_BIN}")
         return items
 
-    batch_size = 5
+    BATCH_SIZE = 3
+    baseline_sleep = 4  # seconds between successful batches
+    RATE_LIMIT_BACKOFF = [60, 180, 300]
+    OTHER_BACKOFF = [10, 20]
+
     failed_items = []
+    total_batches = (len(items) + BATCH_SIZE - 1) // BATCH_SIZE
+    rate_limited_ever = False
 
-    for start in range(0, len(items), batch_size):
-        batch = items[start:start + batch_size]
-        batch_num = start // batch_size + 1
-        label = f"Batch {batch_num}:"
+    for start in range(0, len(items), BATCH_SIZE):
+        batch = items[start:start + BATCH_SIZE]
+        batch_num = start // BATCH_SIZE + 1
+        label = f"Batch {batch_num}/{total_batches}:"
 
-        # Try twice with the batch
         translations = None
-        for attempt in range(2):
-            translations = _call_hermes_translate(batch, label)
+        for attempt in range(1 + max(len(RATE_LIMIT_BACKOFF), len(OTHER_BACKOFF))):
+            translations, err = _call_hermes_translate(batch, label)
             if translations:
                 break
-            if attempt == 0:
-                print(f"  {label} [RETRY] attempt 2/2")
+            if err == "rate_limit":
+                rate_limited_ever = True
+                baseline_sleep = max(baseline_sleep, 10)
+                if attempt < len(RATE_LIMIT_BACKOFF):
+                    wait = RATE_LIMIT_BACKOFF[attempt]
+                    print(f"  {label} rate-limited; sleeping {wait}s before retry {attempt+2}")
+                    time.sleep(wait)
+                else:
+                    print(f"  {label} rate-limited; exhausted retries")
+                    break
+            elif err in ("timeout", "parse_error", "other"):
+                if attempt < len(OTHER_BACKOFF):
+                    wait = OTHER_BACKOFF[attempt]
+                    print(f"  {label} {err}; sleeping {wait}s before retry {attempt+2}")
+                    time.sleep(wait)
+                else:
+                    break
+            else:
+                break
 
         if translations:
             for i, trans in enumerate(translations):
@@ -494,24 +542,36 @@ def translate_batch_with_hermes(items):
                     batch[i]["translated_summary"] = trans.get("translated_summary", "")
             print(f"  {label} translated {len(translations)} items")
         else:
-            print(f"  {label} [FALLBACK] batch failed, queuing for per-item retry")
+            print(f"  {label} [FALLBACK] queued for per-item retry")
             failed_items.extend(batch)
+
+        # Pacing between batches
+        if start + BATCH_SIZE < len(items):
+            time.sleep(baseline_sleep)
 
     # Per-item fallback for items that failed in batch mode
     if failed_items:
-        print(f"\n  Per-item fallback for {len(failed_items)} items:")
+        per_item_pace = 10 if rate_limited_ever else 6
+        print(f"\n  Per-item fallback for {len(failed_items)} items (pace {per_item_pace}s):")
         for idx, item in enumerate(failed_items):
             label = f"Item {idx+1}/{len(failed_items)}:"
-            translations = _call_hermes_translate([item], label)
+            translations, err = _call_hermes_translate([item], label)
+            if err == "rate_limit":
+                print(f"  {label} rate-limited; sleeping 90s then retry once")
+                time.sleep(90)
+                translations, err = _call_hermes_translate([item], label)
             if translations and translations[0]:
                 item["translated_title"] = translations[0].get("translated_title", "")
                 item["translated_summary"] = translations[0].get("translated_summary", "")
                 print(f"  {label} OK")
             else:
-                print(f"  {label} gave up")
+                print(f"  {label} gave up ({err})")
+            if idx + 1 < len(failed_items):
+                time.sleep(per_item_pace)
 
     translated_count = sum(1 for item in items if item.get("translated_title"))
-    print(f"  Total translated: {translated_count}/{len(items)}")
+    print(f"  Total translated: {translated_count}/{len(items)}"
+          f"{' (rate-limited during run)' if rate_limited_ever else ''}")
     return items
 
 
